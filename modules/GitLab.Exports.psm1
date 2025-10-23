@@ -1,3 +1,4 @@
+using module ./GitLab.Types.psm1
 Set-StrictMode -Version Latest
 
 function Export-EnhancedCSVReports {
@@ -17,9 +18,22 @@ function Export-EnhancedCSVReports {
         [string]$OutputPath,
         [string]$ReportDate
     )
-    
+
+    $ProjectReports = @($ProjectReports | Where-Object { $_ -ne $null })
+    $SecurityScanResults = @($SecurityScanResults | Where-Object { $_ -ne $null })
+    $CodeQualityReports = @($CodeQualityReports | Where-Object { $_ -ne $null })
+    $CostReports = @($CostReports | Where-Object { $_ -ne $null })
+    $TeamReports = @($TeamReports | Where-Object { $_ -ne $null })
+    $TechReports = @($TechReports | Where-Object { $_ -ne $null })
+    $LifecycleReports = @($LifecycleReports | Where-Object { $_ -ne $null })
+    $BusinessReports = @($BusinessReports | Where-Object { $_ -ne $null })
+    $FeatureAdoptionReports = @($FeatureAdoptionReports | Where-Object { $_ -ne $null })
+    $CollaborationReports = @($CollaborationReports | Where-Object { $_ -ne $null })
+    $DevOpsMaturityReports = @($DevOpsMaturityReports | Where-Object { $_ -ne $null })
+    $AdoptionBarrierReports = @($AdoptionBarrierReports | Where-Object { $_ -ne $null })
+
     Write-Log -Message "Exporting enhanced CSV reports with adoption metrics..." -Level "Info" -Component "CSVExport"
-    
+
     try {
         # Export existing reports
         if ($ProjectReports.Count -gt 0) {

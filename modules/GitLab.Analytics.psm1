@@ -1,3 +1,4 @@
+using module ./GitLab.Types.psm1
 Set-StrictMode -Version Latest
 
 function Get-CodeQualityArtifactIssues {
@@ -85,7 +86,25 @@ function Invoke-GitLabAPI {
         }
     }
     catch {
-        Write-Warning "API call failed for $Endpoint : $($_.Exception.Message)"
+        $statusCode = $null
+        $exception = $_.Exception
+        if ($exception -and $exception.PSObject.Properties.Name -contains 'StatusCode' -and $exception.StatusCode) {
+            try { $statusCode = [int]$exception.StatusCode } catch { $statusCode = $null }
+        } elseif ($exception -and $exception.PSObject.Properties.Name -contains 'Response' -and $exception.Response) {
+            $response = $exception.Response
+            if ($response.PSObject.Properties.Name -contains 'StatusCode' -and $response.StatusCode) {
+                try { $statusCode = [int]$response.StatusCode } catch { $statusCode = $null }
+            } elseif ($response.PSObject.Properties.Name -contains 'StatusCodeValue' -and $response.StatusCodeValue) {
+                try { $statusCode = [int]$response.StatusCodeValue } catch { $statusCode = $null }
+            }
+        }
+
+        if ($statusCode -eq 404) {
+            Write-Verbose "API endpoint $Endpoint returned 404 Not Found; treating as unavailable."
+            return $null
+        }
+
+        Write-Warning "API call failed for $Endpoint : $($exception.Message)"
         return $null
     }
 }
@@ -249,7 +268,8 @@ function Get-SecurityScanResults {
         foreach ($endpoint in $endpoints) {
             try {
                 $results = Invoke-GitLabAPI -Endpoint $endpoint
-                if ($results -and $results.Count -gt 0) {
+                $normalizedResults = @(ConvertTo-GitLabArray $results)
+                if ($normalizedResults -and $normalizedResults.Count -gt 0) {
                     # Process the results based on the endpoint structure
                     return Process-SecurityResults -ProjectId $ProjectId -ProjectName $ProjectName -ScanType $ScanType -Results $results
                 }
@@ -408,8 +428,8 @@ function Generate-CodeQualityReport {
             
             # Prefer GitLab code quality artifacts over repository traversal
             $hasArtifactData = $false
-            $codeQualityJobs = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?scope[]=success`&per_page=50"
-            
+            $codeQualityJobs = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?scope[]=success`&per_page=50"))
+
             $artifactData = Get-CodeQualityArtifactIssues -ProjectId $project.ProjectId -Jobs $codeQualityJobs
             if ($artifactData -and $artifactData.Issues) {
                 $issues = @($artifactData.Issues)
@@ -426,7 +446,7 @@ function Generate-CodeQualityReport {
                 $qualityReport.DuplicatedLines = if ($duplicationIssues) { $duplicationIssues.Count } else { 0 }
                 $qualityReport.DuplicationPercentage = if ($totalIssues -gt 0 -and $duplicationIssues) { [math]::Round(($duplicationIssues.Count / $totalIssues) * 100, 1) } else { 0 }
                 
-                if ($codeQualityJobs) {
+                if ($codeQualityJobs.Count -gt 0) {
                     $coverageJob = $codeQualityJobs | Where-Object { $_.coverage } | Sort-Object -Property { $_.finished_at } -Descending | Select-Object -First 1
                     if ($coverageJob -and $coverageJob.coverage) {
                         $qualityReport.CoveragePercentage = "$([math]::Round([double]$coverageJob.coverage, 1))%"
@@ -441,10 +461,10 @@ function Generate-CodeQualityReport {
             
             # Get code quality from GitLab's built-in quality reports (if available)
             try {
-                $qualityGates = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/merge_requests?state=merged`&per_page=10"
-                if ($qualityGates) {
+                $qualityGates = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/merge_requests?state=merged`&per_page=10"))
+                if ($qualityGates.Count -gt 0) {
                     # Check for code quality information in recent MRs
-                    foreach ($mr in $qualityGates[0..2]) {
+                    foreach ($mr in ($qualityGates | Select-Object -First 3)) {
                         try {
                             $mrDetails = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/merge_requests/$($mr.iid)"
                             if ($mrDetails.description -and $mrDetails.description -match "quality|coverage|debt") {
@@ -678,7 +698,12 @@ function Generate-CostAnalysisReport {
 }
 
 function Generate-TeamActivityReport {
-    param([array]$ProjectReports)
+    param(
+        [array]$ProjectReports,
+        [int]$DaysBack,
+        [int]$MaxUsers = 20,
+        [int]$MaxProjectsPerUser = 10
+    )
     
     Write-Log -Message "👥 Generating Team Activity Reports..." -Level "Info" -Component "TeamActivity"
     
@@ -686,7 +711,7 @@ function Generate-TeamActivityReport {
     
     # Get all users from GitLab instance (limit to first 50 for performance)
     Write-Log -Message "Fetching users from GitLab..." -Level "Info" -Component "TeamActivity"
-    $allUsers = Invoke-GitLabAPI -Endpoint "users?active=true&per_page=50"
+    $allUsers = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "users?active=true&per_page=50"))
     
     if (-not $allUsers -or $allUsers.Count -eq 0) {
         Write-Log -Message "No users found or insufficient permissions to access users API" -Level "Warning" -Component "TeamActivity"
@@ -694,7 +719,7 @@ function Generate-TeamActivityReport {
     }
     
     # Limit to first 20 users for performance (can be adjusted based on needs)
-    $allUsers = $allUsers | Select-Object -First 20
+    $allUsers = $allUsers | Select-Object -First $MaxUsers
     Write-Log -Message "Analyzing activity for $($allUsers.Count) users..." -Level "Info" -Component "TeamActivity"
     
     $userCounter = 0
@@ -720,12 +745,12 @@ function Generate-TeamActivityReport {
             }
             
             # Analyze user activity across projects (limit to recent data only)
-            $projectsToAnalyze = $ProjectReports | Select-Object -First 10  # Limit projects for performance
+            $projectsToAnalyze = $ProjectReports | Select-Object -First $MaxProjectsPerUser  # Limit for performance
             
             foreach ($project in $projectsToAnalyze) {
                 try {
                     # Get user's recent commits in this project (limit to first page only)
-                    $userCommits = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/repository/commits?author=$($user.username)&since=$((Get-Date).AddDays(-$DaysBack).ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))&per_page=20"
+                    $userCommits = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/repository/commits?author=$($user.username)&since=$((Get-Date).AddDays(-$DaysBack).ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))&per_page=20"))
                     
                     if ($userCommits -and $userCommits.Count -gt 0) {
                         $userStats.ProjectsContributed++
@@ -755,7 +780,7 @@ function Generate-TeamActivityReport {
                     }
                     
                     # Get user's recent merge requests in this project (limit to first page)
-                    $userMRs = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/merge_requests?author_username=$($user.username)&updated_after=$((Get-Date).AddDays(-$DaysBack).ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))&per_page=20"
+                    $userMRs = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/merge_requests?author_username=$($user.username)&updated_after=$((Get-Date).AddDays(-$DaysBack).ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))&per_page=20"))
                     
                     if ($userMRs -and $userMRs.Count -gt 0) {
                         $userStats.MergeRequestsCreated += $userMRs.Count
@@ -763,7 +788,7 @@ function Generate-TeamActivityReport {
                     }
                     
                     # Get user's recent issues in this project (limit to first page)
-                    $userIssues = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/issues?author_username=$($user.username)&updated_after=$((Get-Date).AddDays(-$DaysBack).ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))&per_page=20"
+                    $userIssues = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/issues?author_username=$($user.username)&updated_after=$((Get-Date).AddDays(-$DaysBack).ToString('yyyy-MM-ddTHH:mm:ss.fffZ'))&per_page=20"))
                     
                     if ($userIssues -and $userIssues.Count -gt 0) {
                         $userStats.IssuesCreated += $userIssues.Count
@@ -899,10 +924,10 @@ function Generate-TechnologyStackReport {
         try {
             $projectDetails = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)?statistics=true&with_custom_attributes=true&with_topics=true"
             $languagesResponse = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/languages"
-            $packages = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/packages?per_page=50"
-            $jobs = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?per_page=50"
-            $registryRepos = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/registry/repositories?per_page=20"
-            $environments = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments?per_page=20"
+            $packages = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/packages?per_page=50"))
+            $jobs = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?per_page=50"))
+            $registryRepos = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/registry/repositories?per_page=20"))
+            $environments = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments?per_page=20"))
 
             $languageMap = @{}
             if ($languagesResponse) {
@@ -936,11 +961,11 @@ function Generate-TechnologyStackReport {
                 if ($projectDetails.description) { $tokens += $projectDetails.description }
             }
 
-            if ($packages) {
+            if ($packages.Count -gt 0) {
                 $tokens += ($packages | ForEach-Object { $_.name; $_.package_type })
             }
 
-            if ($jobs) {
+            if ($jobs.Count -gt 0) {
                 $tokens += ($jobs | ForEach-Object {
                     $_.name
                     $_.stage
@@ -949,11 +974,11 @@ function Generate-TechnologyStackReport {
                 })
             }
 
-            if ($environments) {
+            if ($environments.Count -gt 0) {
                 $tokens += ($environments | ForEach-Object { $_.name; $_.slug })
             }
 
-            if ($registryRepos) {
+            if ($registryRepos.Count -gt 0) {
                 $tokens += ($registryRepos | ForEach-Object { $_.name; $_.path })
             }
 
@@ -1446,8 +1471,8 @@ function Generate-GitLabFeatureAdoptionReport {
             
             # Check Wiki usage
             try {
-                $wiki = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/wikis"
-                if ($wiki -and $wiki.Count -gt 0) {
+                $wiki = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/wikis"))
+                if ($wiki.Count -gt 0) {
                     $adoption.UsingWiki = $true
                     $adoption.FeatureAdoptionScore += 10
                 }
@@ -1455,8 +1480,8 @@ function Generate-GitLabFeatureAdoptionReport {
             
             # Check Snippets usage
             try {
-                $snippets = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/snippets"
-                if ($snippets -and $snippets.Count -gt 0) {
+                $snippets = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/snippets"))
+                if ($snippets.Count -gt 0) {
                     $adoption.UsingSnippets = $true
                     $adoption.FeatureAdoptionScore += 5
                 }
@@ -1464,8 +1489,8 @@ function Generate-GitLabFeatureAdoptionReport {
             
             # Check Container Registry usage
             try {
-                $registry = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/registry/repositories"
-                if ($registry -and $registry.Count -gt 0) {
+                $registry = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/registry/repositories"))
+                if ($registry.Count -gt 0) {
                     $adoption.UsingContainer_Registry = $true
                     $adoption.FeatureAdoptionScore += 10
                 }
@@ -1473,8 +1498,8 @@ function Generate-GitLabFeatureAdoptionReport {
             
             # Check Package Registry usage
             try {
-                $packages = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/packages"
-                if ($packages -and $packages.Count -gt 0) {
+                $packages = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/packages"))
+                if ($packages.Count -gt 0) {
                     $adoption.UsingPackage_Registry = $true
                     $adoption.FeatureAdoptionScore += 10
                 }
@@ -1491,8 +1516,8 @@ function Generate-GitLabFeatureAdoptionReport {
             
             # Check Environments usage
             try {
-                $environments = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments"
-                if ($environments -and $environments.Count -gt 0) {
+                $environments = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments"))
+                if ($environments.Count -gt 0) {
                     $adoption.UsingEnvironments = $true
                     $adoption.FeatureAdoptionScore += 10
                 }
@@ -1500,8 +1525,9 @@ function Generate-GitLabFeatureAdoptionReport {
             
             # Check Security Scanning usage (from earlier security analysis)
             try {
-                $securityJobs = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?scope[]=success" | Where-Object { $_.name -match "security|sast|dependency|container" }
-                if ($securityJobs -and $securityJobs.Count -gt 0) {
+                $securityJobs = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?scope[]=success"))
+                $securityJobs = $securityJobs | Where-Object { $_.name -match "security|sast|dependency|container" }
+                if ($securityJobs.Count -gt 0) {
                     $adoption.UsingSecurityScanning = $true
                     $adoption.FeatureAdoptionScore += 10
                 }
@@ -1576,7 +1602,7 @@ function Generate-TeamCollaborationReport {
             # Calculate MR review rate
             if ($project.MergedMergeRequests -gt 0) {
                 try {
-                    $recentMRs = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/merge_requests?state=merged`&per_page=20"
+                    $recentMRs = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/merge_requests?state=merged`&per_page=20"))
                     $reviewedMRs = 0
                     foreach ($mr in $recentMRs) {
                         $mrDetails = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/merge_requests/$($mr.iid)"
@@ -1592,7 +1618,7 @@ function Generate-TeamCollaborationReport {
             
             # Calculate issue response time
             try {
-                $recentIssues = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/issues?state=closed`&per_page=10"
+                    $recentIssues = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/issues?state=closed`&per_page=10"))
                 $totalResponseTime = 0
                 $responsiveIssues = 0
                 
@@ -1701,16 +1727,16 @@ function Generate-DevOpsMaturityReport {
             }
 
             $projectDetails = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)?statistics=true&with_topics=true"
-            $jobs = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?per_page=100"
-            $pipelines = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/pipelines?per_page=20"
-            $deployments = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/deployments?per_page=20"
-            $environments = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments?per_page=20"
+            $jobs = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?per_page=100"))
+            $pipelines = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/pipelines?per_page=20"))
+            $deployments = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/deployments?per_page=20"))
+            $environments = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments?per_page=20"))
 
             $tokens = @()
             if ($projectDetails -and $projectDetails.topics) { $tokens += $projectDetails.topics }
             if ($projectDetails -and $projectDetails.description) { $tokens += $projectDetails.description }
 
-            if ($jobs) {
+            if ($jobs.Count -gt 0) {
                 $tokens += ($jobs | ForEach-Object {
                     $_.name
                     $_.stage
@@ -1721,11 +1747,11 @@ function Generate-DevOpsMaturityReport {
                 })
             }
 
-            if ($pipelines) {
+            if ($pipelines.Count -gt 0) {
                 $tokens += ($pipelines | ForEach-Object { $_.status })
             }
 
-            if ($deployments) {
+            if ($deployments.Count -gt 0) {
                 $tokens += ($deployments | ForEach-Object {
                     $_.status
                     if ($_.deployable) {
@@ -1735,7 +1761,7 @@ function Generate-DevOpsMaturityReport {
                 })
             }
 
-            if ($environments) {
+            if ($environments.Count -gt 0) {
                 $tokens += ($environments | ForEach-Object { $_.name; $_.slug })
             }
 
@@ -1745,13 +1771,13 @@ function Generate-DevOpsMaturityReport {
                 $maturity.AutomatedTesting = (& $hasMatch $tokens 'test|spec|unit|integration|qa|coverage|lint|junit|pytest|jest|mocha|cypress|selenium|sonar')
             }
 
-            if (-not $maturity.AutomatedTesting -and $jobs) {
+            if (-not $maturity.AutomatedTesting -and $jobs.Count -gt 0) {
                 $coverageJob = $jobs | Where-Object { $_.coverage } | Select-Object -First 1
                 if ($coverageJob) { $maturity.AutomatedTesting = $true }
             }
 
-            $maturity.AutomatedDeployment = ($deployments -and $deployments.Count -gt 0) -or (& $hasMatch $tokens 'deploy|release|delivery|promote|helm|kubectl|cd\b|argo')
-            if (-not $maturity.AutomatedDeployment -and $jobs) {
+            $maturity.AutomatedDeployment = ($deployments.Count -gt 0) -or (& $hasMatch $tokens 'deploy|release|delivery|promote|helm|kubectl|cd\b|argo')
+            if (-not $maturity.AutomatedDeployment -and $jobs.Count -gt 0) {
                 $maturity.AutomatedDeployment = ($jobs | Where-Object { $_.stage -eq 'deploy' -or $_.name -match 'deploy|release|delivery|promote' } | Select-Object -First 1) -ne $null
             }
 
@@ -1759,7 +1785,7 @@ function Generate-DevOpsMaturityReport {
             $maturity.MonitoringIntegration = (& $hasMatch $tokens 'prometheus|grafana|datadog|new relic|splunk|observability|monitor')
             $maturity.SecurityIntegration = (& $hasMatch $tokens 'sast|dast|dependency|container|secret|security|trivy|grype|bandit|zap')
 
-            if ($environments -and -not $maturity.MonitoringIntegration) {
+            if ($environments.Count -gt 0 -and -not $maturity.MonitoringIntegration) {
                 $maturity.MonitoringIntegration = ($environments | Where-Object { $_.name -match 'monitor|observability' }) -ne $null
             }
 

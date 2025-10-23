@@ -132,12 +132,19 @@ class BusinessAlignment {
     [string]$ProjectName
     [int]$ProjectId
     [string]$BusinessUnit
+    [string]$StrategicInitiative
     [string]$StrategicImpact
     [string]$CustomerSegment
     [string]$RevenueModel
+    [string]$RevenueImpact
     [string]$BusinessCriticality
+    [string]$Criticality
+    [string]$InvestmentPriority
     [string]$StakeholderOwner
     [string]$AlignmentScore
+    [string]$BusinessValueScore
+    [string]$ROICategory
+    [int]$UserCount
 }
 
 class FeatureAdoption {
@@ -150,6 +157,7 @@ class FeatureAdoption {
     [bool]$UsingCI_CD
     [bool]$UsingSecurityScanning
     [bool]$UsingWiki
+    [bool]$UsingSnippets
     [bool]$UsingContainer_Registry
     [bool]$UsingPackage_Registry
     [bool]$UsingPages
@@ -158,6 +166,9 @@ class FeatureAdoption {
     [string]$NextRecommendedFeature
     [string]$AdoptionBarriers
 }
+
+# Alias class kept for backward compatibility with analytics code
+class GitLabFeatureAdoption : FeatureAdoption {}
 
 class TeamCollaboration {
     [string]$ProjectName
@@ -171,6 +182,7 @@ class TeamCollaboration {
     [string]$CollaborationHealth
     [string]$ImprovementAreas
     [int]$MentorshipActivity
+    [double]$CollaborationScore
 }
 
 class DevOpsMaturity {

@@ -1,3 +1,4 @@
+using module ./GitLab.Types.psm1
 Set-StrictMode -Version Latest
 
 function Get-ProjectHealth {
@@ -78,7 +79,7 @@ function Get-GitLabProjectReports {
         [scriptblock]$UpdateProgress
     )
 
-    $projects = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects?statistics=true&per_page=100" -AllPages
+    $projects = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects?statistics=true&per_page=100" -AllPages))
     if (-not $projects) {
         return @()
     }
@@ -104,23 +105,23 @@ function Get-GitLabProjectReports {
             $projectDetails = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)?statistics=true"
             $repoStats = if ($projectDetails.statistics) { $projectDetails.statistics } else { @{} }
 
-            $contributors = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/repository/contributors" -AllPages
+            $contributors = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/repository/contributors" -AllPages))
             $contributorsCount = if ($contributors) { $contributors.Count } else { 0 }
 
-            $branches = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/repository/branches" -AllPages
-            $tags = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/repository/tags" -AllPages
+            $branches = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/repository/branches" -AllPages))
+            $tags = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/repository/tags" -AllPages))
 
-            $openIssues = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/issues?state=opened`&per_page=1"
-            $closedIssues = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/issues?state=closed`&per_page=1"
-            $openIssuesCount = if ($openIssues -and $openIssues.Count -gt 0) { (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/issues?state=opened").Count } else { 0 }
-            $closedIssuesCount = if ($closedIssues -and $closedIssues.Count -gt 0) { (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/issues?state=closed").Count } else { 0 }
+            $openIssues = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/issues?state=opened`&per_page=1"))
+            $closedIssues = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/issues?state=closed`&per_page=1"))
+            $openIssuesCount = if ($openIssues.Count -gt 0) { (ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/issues?state=opened")).Count } else { 0 }
+            $closedIssuesCount = if ($closedIssues.Count -gt 0) { (ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/issues?state=closed")).Count } else { 0 }
 
-            $openMRs = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/merge_requests?state=opened`&per_page=1"
-            $mergedMRs = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/merge_requests?state=merged`&per_page=1"
-            $openMRsCount = if ($openMRs -and $openMRs.Count -gt 0) { (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/merge_requests?state=opened").Count } else { 0 }
-            $mergedMRsCount = if ($mergedMRs -and $mergedMRs.Count -gt 0) { (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/merge_requests?state=merged").Count } else { 0 }
+            $openMRs = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/merge_requests?state=opened`&per_page=1"))
+            $mergedMRs = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/merge_requests?state=merged`&per_page=1"))
+            $openMRsCount = if ($openMRs.Count -gt 0) { (ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/merge_requests?state=opened")).Count } else { 0 }
+            $mergedMRsCount = if ($mergedMRs.Count -gt 0) { (ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/merge_requests?state=merged")).Count } else { 0 }
 
-            $pipelines = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/pipelines?per_page=100" -AllPages
+            $pipelines = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/pipelines?per_page=100" -AllPages))
             $pipelinesTotal = if ($pipelines) { $pipelines.Count } else { 0 }
             $pipelinesSuccess = if ($pipelines) { ($pipelines | Where-Object { $_.status -eq 'success' }).Count } else { 0 }
             $pipelinesFailed = if ($pipelines) { ($pipelines | Where-Object { $_.status -eq 'failed' }).Count } else { 0 }

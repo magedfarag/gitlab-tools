@@ -4,14 +4,14 @@ This script coordinates the GitLab reporting workflow using modular components.
 #>
 
 param(
-    [string]$GitLabURL,
-    [string]$AccessToken,
+    [string]$GitLabURL='http://localhost',
+    [string]$AccessToken='glpat-bkOzctpmnpqfB10rZWdCHW86MQp1OjEH.01.0w1l4gyho',
     [string]$OutputPath = '.\report',
     [int]$DaysBack = 360,
     [switch]$IncludeSecurityData = $true,
     [switch]$IncludeAllReports = $true,
     [ValidateSet("Minimal","Normal","Verbose","Debug")]
-    [string]$LogLevel = 'Normal',
+    [string]$LogLevel = 'Verbose',
     [switch]$NonInteractive,
     [switch]$EnableFileLogging,
     [switch]$ForceRestart
@@ -25,6 +25,7 @@ Import-Module "$PSScriptRoot/modules/GitLab.Analytics.psm1" -Force
 Import-Module "$PSScriptRoot/modules/GitLab.Exports.psm1" -Force
 Import-Module "$PSScriptRoot/modules/GitLab.Dashboard.psm1" -Force
 
+$global:DaysBack = $DaysBack
 $headers = @{
     'PRIVATE-TOKEN' = $AccessToken
     'Content-Type'  = 'application/json'
@@ -40,12 +41,28 @@ if (!(Test-Path $OutputPath)) {
     New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
 }
 
-$logFilePath = if ($EnableFileLogging) { Join-Path $OutputPath "GitLab-Dashboard-$reportDate.log" } else { $null }
-Initialize-GitLabLogging -LogLevel $LogLevel -NonInteractive:$NonInteractive -EnableFileLogging:$EnableFileLogging -LogFilePath $logFilePath
+$reportFolderName = $reportDate
+$reportOutputPath = Join-Path $OutputPath $reportFolderName
+$folderSuffix = 1
+while (Test-Path $reportOutputPath) {
+    $reportFolderName = "{0}-{1:D2}" -f $reportDate, $folderSuffix
+    $reportOutputPath = Join-Path $OutputPath $reportFolderName
+    $folderSuffix++
+}
+
+if (-not (Test-Path $reportOutputPath)) {
+    New-Item -ItemType Directory -Path $reportOutputPath -Force | Out-Null
+}
+
+$global:ReportOutputPath = $reportOutputPath
+
+$logFilePath = if ($EnableFileLogging) { Join-Path $reportOutputPath "GitLab-Dashboard-$reportDate.log" } else { $null }
+Initialize-GitLabLogging -LogLevel $LogLevel -Non-Interactive:$NonInteractive -EnableFileLogging:$EnableFileLogging -LogFilePath $logFilePath
 Write-Log -Message 'GitLab Comprehensive Management Dashboard - Starting' -Level 'Info' -Component 'Init'
 Write-Log -Message "Log Level: $LogLevel" -Level 'Info' -Component 'Init'
 Write-Log -Message "Non-Interactive Mode: $($NonInteractive.IsPresent)" -Level 'Info' -Component 'Init'
-Write-Log -Message "Output Path: $OutputPath" -Level 'Info' -Component 'Init'
+Write-Log -Message "Output Root: $OutputPath" -Level 'Info' -Component 'Init'
+Write-Log -Message "Report Folder: $reportOutputPath" -Level 'Info' -Component 'Init'
 Write-Log -Message "Days Back: $DaysBack" -Level 'Info' -Component 'Init'
 
 function Update-OverallProgress {
@@ -240,7 +257,7 @@ if ($IncludeAllReports) {
     } else {
         Start-Checkpoint -Stage 'TeamActivity'
         Write-LogProgress -Activity 'Generating team activity reports' -Status 'Analyzing team engagement' -PercentComplete 45 -Step 5 -TotalSteps 12
-        $teamReports = Generate-TeamActivityReport -ProjectReports $projectReports
+        $teamReports = Generate-TeamActivityReport -ProjectReports $projectReports -DaysBack $DaysBack
         Complete-Checkpoint -Stage 'TeamActivity' -Data $teamReports
     }
 
@@ -321,7 +338,7 @@ if ($IncludeAllReports) {
 
 try {
     Write-Log -Message 'Exporting enhanced CSV reports...' -Level 'Info' -Component 'CSV'
-    Export-EnhancedCSVReports -ProjectReports $projectReports -SecurityScanResults $securityScanResults -CodeQualityReports $codeQualityReports -CostReports $costReports -TeamReports $teamReports -TechReports $techReports -LifecycleReports $lifecycleReports -BusinessReports $businessReports -FeatureAdoptionReports $featureAdoptionReports -CollaborationReports $collaborationReports -DevOpsMaturityReports $devOpsMaturityReports -AdoptionBarrierReports $adoptionBarrierReports -OutputPath $OutputPath -ReportDate $reportDate
+    Export-EnhancedCSVReports -ProjectReports $projectReports -SecurityScanResults $securityScanResults -CodeQualityReports $codeQualityReports -CostReports $costReports -TeamReports $teamReports -TechReports $techReports -LifecycleReports $lifecycleReports -BusinessReports $businessReports -FeatureAdoptionReports $featureAdoptionReports -CollaborationReports $collaborationReports -DevOpsMaturityReports $devOpsMaturityReports -AdoptionBarrierReports $adoptionBarrierReports -OutputPath $reportOutputPath -ReportDate $reportDate
 } catch {
     Write-Log -Message "Failed to export enhanced CSV reports: $($_.Exception.Message)" -Level 'Error' -Component 'CSV'
 }
@@ -348,7 +365,7 @@ $dashboardHTML = New-ConsolidatedDashboardFromTemplate `
     -TemplatePath $templatePath
 
 if ($dashboardHTML) {
-    $dashboardPath = Join-Path $OutputPath "GitLab-Dashboard-$reportDate.html"
+    $dashboardPath = Join-Path $reportOutputPath "GitLab-Dashboard-$reportDate.html"
     $dashboardHTML | Out-File -FilePath $dashboardPath -Encoding UTF8
     Write-Log -Message "Dashboard generated successfully: $dashboardPath" -Level 'Success' -Component 'Dashboard'
     Write-Log -Message "Execution Time: $([math]::Round($executionTime.TotalMinutes, 2)) minutes" -Level 'Info' -Component 'Performance'
@@ -358,6 +375,16 @@ else {
 }
 
 Publish-CheckpointSummary
+
+
+
+
+
+
+
+
+
+
 
 
 

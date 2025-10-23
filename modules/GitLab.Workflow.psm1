@@ -83,6 +83,31 @@ function Initialize-GitLabCheckpoints {
     return $context
 }
 
+function Test-CheckpointKey {
+    param(
+        $Entry,
+        [string]$Key
+    )
+
+    if ($null -eq $Entry -or [string]::IsNullOrWhiteSpace($Key)) {
+        return $false
+    }
+
+    if ($Entry -is [hashtable]) {
+        return $Entry.ContainsKey($Key)
+    }
+
+    if ($Entry -is [System.Collections.Specialized.OrderedDictionary]) {
+        return $Entry.Contains($Key)
+    }
+
+    if ($Entry -is [psobject]) {
+        return $Entry.PSObject.Properties.Name -contains $Key
+    }
+
+    return $false
+}
+
 function Save-GitLabCheckpointMetadata {
     param([GitLabCheckpointContext]$Context)
     if (-not $Context.Enabled) { return }
@@ -151,11 +176,11 @@ function Save-GitLabCheckpoint {
 
         $entry['Status'] = 'Restored'
         $entry['RestoredAt'] = $now
-        if ($entry.ContainsKey('DurationSeconds') -and $entry['DurationSeconds'] -and -not $entry['DurationReadable']) {
+        if ((Test-CheckpointKey -Entry $entry -Key 'DurationSeconds') -and $entry['DurationSeconds'] -and -not (Test-CheckpointKey -Entry $entry -Key 'DurationReadable')) {
             $entry['DurationReadable'] = Format-GitLabDuration ([TimeSpan]::FromSeconds($entry['DurationSeconds']))
         }
 
-        if (-not $entry.ContainsKey('SavedAt')) {
+        if (-not (Test-CheckpointKey -Entry $entry -Key 'SavedAt')) {
             $entry['SavedAt'] = $now
         }
 
@@ -223,12 +248,30 @@ function Publish-GitLabCheckpointSummary {
     Write-Log -Message "Checkpoint timing summary:" -Level "Info" -Component "Checkpoint"
     foreach ($stage in $Context.StageStatus.Keys) {
         $info = $Context.StageStatus[$stage]
+        if ($null -eq $info) { continue }
+
+        if ($info -isnot [hashtable]) {
+            $converted = [ordered]@{}
+            if ($info -is [System.Collections.IDictionary]) {
+                foreach ($key in $info.Keys) {
+                    $converted[$key] = $info[$key]
+                }
+            } elseif ($info -is [psobject]) {
+                foreach ($prop in $info.PSObject.Properties) {
+                    $converted[$prop.Name] = $prop.Value
+                }
+            } else {
+                $converted['Status'] = $info
+            }
+            $info = $converted
+        }
+
         $label = if ($StageLabels -and $StageLabels.Contains($stage)) { $StageLabels[$stage] } else { $stage }
-        $status = if ($info.Status) { $info.Status } else { "Unknown" }
-        $durationText = if ($info.DurationReadable) {
-            $info.DurationReadable
-        } elseif ($info.DurationSeconds) {
-            Format-GitLabDuration ([TimeSpan]::FromSeconds($info.DurationSeconds))
+        $status = if (Test-CheckpointKey -Entry $info -Key 'Status' -and $info['Status']) { $info['Status'] } else { "Unknown" }
+        $durationText = if (Test-CheckpointKey -Entry $info -Key 'DurationReadable' -and $info['DurationReadable']) {
+            $info['DurationReadable']
+        } elseif (Test-CheckpointKey -Entry $info -Key 'DurationSeconds' -and $info['DurationSeconds']) {
+            Format-GitLabDuration ([TimeSpan]::FromSeconds($info['DurationSeconds']))
         } else {
             "0s"
         }
@@ -244,10 +287,17 @@ function ConvertTo-GitLabArray {
     param($Data)
     if ($null -eq $Data) { return @() }
     if ($Data -is [string]) { return @($Data) }
+    if ($Data -is [System.Collections.IDictionary]) {
+        $values = @()
+        foreach ($key in $Data.Keys) {
+            $values += $Data[$key]
+        }
+        return $values
+    }
     if ($Data -is [System.Collections.IEnumerable]) {
         return @($Data | ForEach-Object { $_ })
     }
-    return @($Data)
+    return ,$Data
 }
 
 Export-ModuleMember -Function Initialize-GitLabCheckpoints,Start-GitLabCheckpoint,Save-GitLabCheckpoint,Restore-GitLabCheckpoint,Publish-GitLabCheckpointSummary,ConvertTo-GitLabArray,Format-GitLabDuration,Get-GitLabCheckpoint

@@ -1,3 +1,4 @@
+using module ./GitLab.Types.psm1
 Set-StrictMode -Version Latest
 
 function Expand-Template {
@@ -8,7 +9,19 @@ function Expand-Template {
     
     try {
         # Load the template
-        if (!(Test-Path $TemplatePath)) {
+        if (-not (Test-Path $TemplatePath)) {
+            $templateName = if ($TemplatePath) { Split-Path -Path $TemplatePath -Leaf } else { 'gitlab-report-template.html' }
+            $moduleParent = Split-Path -Path $PSScriptRoot -Parent
+            if ($moduleParent) {
+                $alternatePath = Join-Path $moduleParent $templateName
+                if (Test-Path $alternatePath) {
+                    Write-Log -Message "Template not found at $TemplatePath. Using fallback path $alternatePath." -Level "Warning" -Component "TemplateExpansion"
+                    $TemplatePath = $alternatePath
+                }
+            }
+        }
+
+        if (-not (Test-Path $TemplatePath)) {
             throw "Template file not found: $TemplatePath"
         }
         
@@ -40,11 +53,18 @@ function Expand-Template {
         # Execute template with PowerShell expansion to handle $(foreach...) blocks
         Write-Log -Message "Executing template expansion with ExpandString" -Level "Debug" -Component "TemplateExpansion"
         
+        $originalErrorPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Stop'
         try {
             $expandedContent = $ExecutionContext.InvokeCommand.ExpandString($templateContent)
         } catch {
-            Write-Log -Message "Template expansion error: $($_.Exception.Message)" -Level "Error" -Component "TemplateExpansion"
+            $errorRecord = $_
+            $message = $errorRecord.Exception.Message
+            $position = if ($errorRecord.InvocationInfo -and $errorRecord.InvocationInfo.PositionMessage) { $errorRecord.InvocationInfo.PositionMessage.Trim() } else { "Position unknown" }
+            Write-Log -Message "Template expansion error: $message [$position]" -Level "Error" -Component "TemplateExpansion"
             throw
+        } finally {
+            $ErrorActionPreference = $originalErrorPreference
         }
         
         # Ensure result is a clean string
@@ -99,6 +119,27 @@ function New-ConsolidatedDashboardFromTemplate {
         [string]$TemplatePath
     )
     
+    $ProjectReports = @(ConvertTo-GitLabArray $ProjectReports | Where-Object { $_ -ne $null })
+    $SecurityScanResults = @(ConvertTo-GitLabArray $SecurityScanResults | Where-Object { $_ -ne $null })
+    $CodeQualityReports = @(ConvertTo-GitLabArray $CodeQualityReports | Where-Object { $_ -ne $null })
+    $CostReports = @(ConvertTo-GitLabArray $CostReports | Where-Object { $_ -ne $null })
+    $TeamReports = @(ConvertTo-GitLabArray $TeamReports | Where-Object { $_ -ne $null })
+    $TechReports = @(ConvertTo-GitLabArray $TechReports | Where-Object { $_ -ne $null })
+    $LifecycleReports = @(ConvertTo-GitLabArray $LifecycleReports | Where-Object { $_ -ne $null })
+    $BusinessReports = @(ConvertTo-GitLabArray $BusinessReports | Where-Object { $_ -ne $null })
+    $FeatureAdoptionReports = @(ConvertTo-GitLabArray $FeatureAdoptionReports | Where-Object { $_ -ne $null })
+    $CollaborationReports = @(ConvertTo-GitLabArray $CollaborationReports | Where-Object { $_ -ne $null })
+    $DevOpsMaturityReports = @(ConvertTo-GitLabArray $DevOpsMaturityReports | Where-Object { $_ -ne $null })
+    $AdoptionBarrierReports = @(ConvertTo-GitLabArray $AdoptionBarrierReports | Where-Object { $_ -ne $null })
+    
+    Write-Log -Message ("Dashboard dataset types: Projects={0} Security={1} Feature={2}" -f `
+        ($ProjectReports.GetType().FullName), `
+        ($SecurityScanResults.GetType().FullName), `
+        ($FeatureAdoptionReports.GetType().FullName)) -Level "Debug" -Component "Dashboard"
+    if ($ProjectReports.Count -gt 0) {
+        Write-Log -Message ("First project type: {0}" -f $ProjectReports[0].GetType().FullName) -Level "Debug" -Component "Dashboard"
+    }
+
     # Calculate all metrics needed for the template with safe division
     $totalProjects = if ($ProjectReports) { $ProjectReports.Count } else { 0 }
     $activeProjects = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.DaysSinceLastActivity -le 30 }).Count } else { 0 }
@@ -187,6 +228,9 @@ function New-ConsolidatedDashboardFromTemplate {
 "@
     }
 
+    $adoptionProjectsCount = $highAdoption + $mediumAdoption
+    $adoptionRatioString = if ($totalProjects -gt 0) { "$adoptionProjectsCount/$totalProjects" } else { "0/$totalProjects" }
+
     # Prepare all parameters for template expansion
     $templateParameters = @{
         ProjectReports = if ($ProjectReports) { $ProjectReports } else { @() }
@@ -212,6 +256,8 @@ function New-ConsolidatedDashboardFromTemplate {
         lowAdoption = $lowAdoption
         veryLowAdoption = $veryLowAdoption
         adoptionRate = $adoptionRate  # Pre-calculated safe value
+        adoptionProjectsCount = $adoptionProjectsCount
+        adoptionRatio = $adoptionRatioString
         avgPipelineSuccess = $avgPipelineSuccess
         totalCriticalVulns = $totalCriticalVulns
         projectsWithCriticalVulns = $projectsWithCriticalVulns
@@ -233,8 +279,6 @@ function New-ConsolidatedDashboardFromTemplate {
         costAnalysisTableRows = $costAnalysisTableRows
         # Computed display values (to avoid complex expressions in template)
         activeProjectsCount = $totalProjects - $staleProjects
-        adoptionProjectsCount = $highAdoption + $mediumAdoption
-        adoptionRatio = "$adoptionProjectsCount/$totalProjects"
         # Adoption-focused metrics
         avgFeatureAdoption = if ($FeatureAdoptionReports -and $FeatureAdoptionReports.Count -gt 0) { 
             [math]::Round(($FeatureAdoptionReports | Measure-Object -Property FeatureAdoptionScore -Average).Average, 1) 
