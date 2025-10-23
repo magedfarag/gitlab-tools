@@ -1,0 +1,132 @@
+# GitLab Security Policy Configuration
+# This policy enforces security scanning on all merge requests and main branch pushes
+# Follows GitLab security best practices with branch-specific configurations
+
+tybe: scan_execution_policy
+name: Production Branch Security Policy
+description: "Comprehensive security scanning for production branches with strict thresholds"
+enabled: true
+rules:
+    - type: pipeline
+      branches:
+      - main
+      - master
+      - production
+      - release/*
+actions:
+    # Static Application Security Testing - Production Grade
+    - scan: sast
+      variables:
+        SAST_EXCLUDED_PATHS: "spec,test,tests,tmp,node_modules,vendor,wwwroot,build,dist,coverage,docs,examples,samples,demo"
+        SAST_EXCLUDED_ANALYZERS: ""
+        SAST_DEFAULT_ANALYZERS: ""
+        SAST_DISABLE_BABEL: "false"
+        SAST_DISABLE_DIND: "false"
+        SAST_JAVA_VERSION: "17"  # Updated to LTS version
+        SAST_SEMGREP_METRICS: "auto"
+        SAST_BANDIT_EXCLUDED_PATHS: "tests/,docs/,examples/"
+        SAST_BRAKEMAN_LEVEL: "1"  # Strictest level for production
+        SAST_FLAWFINDER_LEVEL: "1"
+        SAST_GITLEAKS_ENTROPY_LEVEL: "3.0"
+        SAST_GOSEC_LEVEL: "0"  # Most comprehensive
+        SAST_KUBESEC_HELM_CHARTS_PATH: ""
+        SAST_NODEJS_SCAN_LEVEL: "1"
+        SAST_PHPCS_SECURITY_AUDIT_LEVEL: "1"
+        SAST_PMDAPEX_LEVEL: "1"
+        SAST_SOBELOW_LEVEL: "1"
+        SAST_SPOTBUGS_LEVEL: "1"
+        SECURE_ANALYZERS_PREFIX: "registry.gitlab.com/gitlab-org/security-products/analyzers"
+
+  # Secret Detection - Historic scan enabled for production branches
+    - scan: secret_detection
+      variables:
+        SECRET_DETECTION_EXCLUDED_PATHS: "spec,test,tests,tmp,node_modules,vendor,wwwroot,build,dist,coverage,docs,examples,samples,demo"
+        SECRET_DETECTION_EXCLUDED_ANALYZERS: ""
+        SECRET_DETECTION_COMMIT_FROM: ""
+        SECRET_DETECTION_COMMIT_TO: ""
+        SECRET_DETECTION_HISTORIC_SCAN: "true"  # Enable for production branches
+        SECRET_DETECTION_LOG_OPTIONS: ""
+        SECRET_DETECTION_DISABLE_DIND: "false"
+        SECRET_DETECTION_TIMEOUT: "120"  # Increased for historic scan
+        SECRET_DETECTION_IMAGE_SUFFIX: ""
+        SECURE_ANALYZERS_PREFIX: "registry.gitlab.com/gitlab-org/security-products/analyzers"
+    
+      # Dependency Scanning
+    - scan: dependency_scanning
+      variables:
+        DS_EXCLUDED_PATHS: "spec,test,tests,tmp,node_modules,vendor,wwwroot"
+        DS_EXCLUDED_ANALYZERS: ""
+        DS_DEFAULT_ANALYZERS: ""
+        DS_DISABLE_DIND: "false"
+        DS_JAVA_VERSION: "11"
+        DS_PYTHON_VERSION: "3"
+        DS_INCLUDE_DEV_DEPENDENCIES: "true"
+        DS_REMEDIATE: "false"
+        DS_DOCKER_CLIENT_NEGOTIATION_TIMEOUT: "2m"
+        DS_PULL_ANALYZER_IMAGE_TIMEOUT: "5m"
+        DS_RUN_ANALYZER_TIMEOUT: "20m"
+        DS_MAX_DEPTH: "20"
+        GEMNASIUM_DB_LOCAL_PATH: ""
+        GEMNASIUM_DB_REMOTE_URL: ""
+        GEMNASIUM_DB_REF_NAME: ""
+        PIP_INDEX_URL: ""
+        PIP_EXTRA_INDEX_URL: ""
+        PIP_REQUIREMENTS_FILE: ""
+        MAVEN_CLI_OPTS: ""
+        GRADLE_CLI_OPTS: ""
+        SBT_CLI_OPTS: ""
+        BUNDLER_AUDIT_UPDATE_DISABLED: "false"
+        BUNDLER_AUDIT_ADVISORY_DB_URL: ""
+        BUNDLER_AUDIT_ADVISORY_DB_REF_NAME: ""
+        SECURE_ANALYZERS_PREFIX: "registry.gitlab.com/gitlab-org/security-products/analyzers"
+    
+    
+
+---
+
+name: "Development Branch Security Policy"
+description: "Optimized security scanning for development and feature branches"
+enabled: true
+rules:
+    - type: pipeline
+      branches:
+      - "*"
+condition:
+    - exists:
+      - "**/*.py"
+      - "**/*.js"
+      - "**/*.ts"
+      - "**/*.java"
+      - "**/*.cs"
+      - "**/*.php"
+      - "**/*.html"
+      - "**/*.cshtml"
+      - "**/*.aspx"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - "**/Dockerfile"
+actions:
+    # Faster SAST for development branches
+    - scan: sast
+      variables:
+        SAST_EXCLUDED_PATHS: "spec,test,tests,tmp,node_modules,vendor,wwwroot,build,dist,coverage,docs,examples,samples,demo"
+        SAST_JAVA_VERSION: "17"
+        SAST_BRAKEMAN_LEVEL: "2"  # Slightly less strict for faster feedback
+        SAST_GOSEC_LEVEL: "1"
+        SECURE_ANALYZERS_PREFIX: "registry.gitlab.com/gitlab-org/security-products/analyzers"
+
+  # Fast secret detection (no historic scan)
+    - scan: secret_detection
+      variables:
+        SECRET_DETECTION_EXCLUDED_PATHS: "spec,test,tests,tmp,node_modules,vendor,wwwroot,build,dist,coverage,docs,examples,samples,demo"
+        SECRET_DETECTION_HISTORIC_SCAN: "false"
+        SECRET_DETECTION_TIMEOUT: "60"
+        SECURE_ANALYZERS_PREFIX: "registry.gitlab.com/gitlab-org/security-products/analyzers"
+
+    # Essential dependency scanning
+    - scan: dependency_scanning
+      variables:
+        DS_EXCLUDED_PATHS: "spec,test,tests,tmp,node_modules,vendor,wwwroot,build,dist,coverage,docs,examples,samples,demo"
+        DS_INCLUDE_DEV_DEPENDENCIES: "false"  # Skip dev deps for faster scans
+        DS_RUN_ANALYZER_TIMEOUT: "10m"  # Shorter timeout
+        SECURE_ANALYZERS_PREFIX: "registry.gitlab.com/gitlab-org/security-products/analyzers"

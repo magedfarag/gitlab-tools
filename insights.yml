@@ -1,0 +1,438 @@
+# GitLab Insights Configuration
+# This file defines custom insights and charts for project/group analytics
+# Best practices for security scanning, development velocity, and code quality monitoring
+
+---
+# Security Scanning Insights
+security_scanning:
+  title: "Security Scanning Overview"
+  charts:
+    # Security Vulnerabilities by Severity
+    - title: "Security Vulnerabilities by Severity"
+      description: "Track security vulnerabilities found across all security scans"
+      type: bar
+      query:
+        data_source: vulnerabilities
+        group_by: severity
+        period: month
+        collection_labels:
+          - Critical
+          - High
+          - Medium
+          - Low
+          - Info
+        filter_labels:
+          - critical
+          - high
+          - medium
+          - low
+          - info
+
+    # SAST Findings Trend
+    - title: "SAST Vulnerabilities Trend"
+      description: "Static Application Security Testing findings over time"
+      type: line
+      query:
+        data_source: vulnerabilities
+        group_by: day
+        period: month
+        filter_labels:
+          - sast
+
+    # Secret Detection Findings
+    - title: "Secret Detection Findings"
+      description: "Exposed secrets detected in repositories"
+      type: bar
+      query:
+        data_source: vulnerabilities
+        group_by: week
+        period: month
+        filter_labels:
+          - secret_detection
+
+    # Dependency Vulnerabilities
+    - title: "Dependency Scanning Results"
+      description: "Vulnerable dependencies identified"
+      type: stacked-bar
+      query:
+        data_source: vulnerabilities
+        group_by: severity
+        period: month
+        filter_labels:
+          - dependency_scanning
+
+    # Container Scanning Results
+    - title: "Container Security Issues"
+      description: "Container image vulnerabilities"
+      type: line
+      query:
+        data_source: vulnerabilities
+        group_by: week
+        period: month
+        filter_labels:
+          - container_scanning
+
+# Development Velocity & Quality
+development_metrics:
+  title: "Development Velocity & Quality"
+  charts:
+    # Pipeline Success Rate
+    - title: "Pipeline Success Rate"
+      description: "Percentage of successful CI/CD pipelines"
+      type: line
+      query:
+        data_source: pipelines
+        group_by: day
+        period: month
+        collection_labels:
+          - Success Rate
+        aggregate: average
+
+    # Deployment Frequency
+    - title: "Deployment Frequency"
+      description: "Number of deployments per time period"
+      type: bar
+      query:
+        data_source: deployments
+        group_by: week
+        period: month
+        environment_tiers:
+          - production
+          - staging
+
+    # Mean Time to Recovery (MTTR)
+    - title: "Mean Time to Recovery"
+      description: "Average time to resolve production issues"
+      type: line
+      query:
+        data_source: incidents
+        group_by: week
+        period: month
+        aggregate: average
+
+    # Code Quality Issues
+    - title: "Code Quality Trends"
+      description: "Code quality issues detected over time"
+      type: stacked-bar
+      query:
+        data_source: issues
+        group_by: week
+        period: month
+        filter_labels:
+          - bug
+          - code-quality
+          - technical-debt
+
+# Merge Request Analytics
+merge_request_analytics:
+  title: "Merge Request Analytics"
+  charts:
+    # MR Throughput
+    - title: "Merge Request Throughput"
+      description: "Number of merge requests created and merged"
+      type: bar
+      query:
+        data_source: merge_requests
+        group_by: week
+        period: month
+        collection_labels:
+          - Created
+          - Merged
+        aggregate: count
+
+    # MR Review Time
+    - title: "Merge Request Review Time"
+      description: "Average time from creation to merge"
+      type: line
+      query:
+        data_source: merge_requests
+        group_by: week
+        period: month
+        aggregate: average
+
+    # Security Scan Results in MRs
+    - title: "Security Scans in Merge Requests"
+      description: "Security scan results blocking merge requests"
+      type: stacked-bar
+      query:
+        data_source: merge_requests
+        group_by: week
+        period: month
+        filter_labels:
+          - security-scan-failed
+          - security-scan-passed
+
+# Compliance & Governance
+compliance_monitoring:
+  title: "Compliance & Governance"
+  charts:
+    # License Compliance
+    - title: "License Compliance Status"
+      description: "Approved vs. unapproved licenses in dependencies"
+      type: pie
+      query:
+        data_source: licenses
+        group_by: approval_status
+        period: month
+        collection_labels:
+          - Approved
+          - Denied
+          - Unknown
+
+    # Security Policy Compliance
+    - title: "Security Policy Compliance"
+      description: "Projects compliance with security policies"
+      type: bar
+      query:
+        data_source: projects
+        group_by: compliance_status
+        period: month
+        filter_labels:
+          - compliant
+          - non-compliant
+          - partial
+
+    # Audit Events
+    - title: "Security Audit Events"
+      description: "Security-related audit events over time"
+      type: line
+      query:
+        data_source: audit_events
+        group_by: day
+        period: month
+        filter_labels:
+          - security
+          - authentication
+          - authorization
+
+# Team Performance
+team_performance:
+  title: "Team Performance Metrics"
+  charts:
+    # Contributor Activity
+    - title: "Contributor Activity"
+      description: "Number of active contributors per week"
+      type: line
+      query:
+        data_source: commits
+        group_by: week
+        period: month
+        aggregate: count_distinct
+        attribute: author_email
+
+    # Code Coverage Trends
+    - title: "Code Coverage Trends"
+      description: "Test coverage percentage over time"
+      type: line
+      query:
+        data_source: coverage
+        group_by: week
+        period: month
+        aggregate: average
+
+    # Bug Resolution Time
+    - title: "Bug Resolution Time"
+      description: "Average time to resolve bugs"
+      type: bar
+      query:
+        data_source: issues
+        group_by: week
+        period: month
+        filter_labels:
+          - bug
+        aggregate: average
+        attribute: time_to_close
+
+# Custom Security Metrics
+custom_security_metrics:
+  title: "Advanced Security Metrics"
+  charts:
+    # Security Debt
+    - title: "Security Technical Debt"
+      description: "Outstanding security issues by age"
+      type: stacked-bar
+      query:
+        data_source: vulnerabilities
+        group_by: created_date
+        period: month
+        collection_labels:
+          - "0-30 days"
+          - "31-90 days"
+          - "91+ days"
+
+    # Security Training Completion
+    - title: "Security Training Completion"
+      description: "Team security training completion rate"
+      type: line
+      query:
+        data_source: users
+        group_by: month
+        period: year
+        filter_labels:
+          - security-training-complete
+
+    # Vulnerability Response Time
+    - title: "Vulnerability Response Time"
+      description: "Time from detection to resolution by severity"
+      type: bar
+      query:
+        data_source: vulnerabilities
+        group_by: severity
+        period: month
+        aggregate: average
+        attribute: time_to_resolution
+
+# DevSecOps Metrics
+devsecops_metrics:
+  title: "DevSecOps Implementation"
+  charts:
+    # Security Scans per Pipeline
+    - title: "Security Scans Coverage"
+      description: "Percentage of pipelines with security scans"
+      type: line
+      query:
+        data_source: pipelines
+        group_by: week
+        period: month
+        aggregate: percentage
+        filter_labels:
+          - has-security-scans
+
+    # Shift-Left Security
+    - title: "Security Issues Found Early"
+      description: "Security issues found in development vs production"
+      type: stacked-bar
+      query:
+        data_source: vulnerabilities
+        group_by: detection_stage
+        period: month
+        collection_labels:
+          - Development
+          - Staging
+          - Production
+
+    # Security Automation Rate
+    - title: "Security Automation Adoption"
+      description: "Automated vs manual security processes"
+      type: pie
+      query:
+        data_source: security_processes
+        group_by: automation_status
+        period: month
+        collection_labels:
+          - Automated
+          - Manual
+          - Semi-Automated
+
+# Configuration for different environments
+environments:
+  production:
+    # Override certain charts for production-specific metrics
+    charts:
+      - title: "Production Security Incidents"
+        description: "Security incidents in production environment"
+        type: line
+        query:
+          data_source: incidents
+          group_by: day
+          period: month
+          environment_tiers:
+            - production
+          filter_labels:
+            - security
+
+  staging:
+    # Staging-specific insights
+    charts:
+      - title: "Staging Security Test Results"
+        description: "Security testing results in staging"
+        type: bar
+        query:
+          data_source: tests
+          group_by: week
+          period: month
+          environment_tiers:
+            - staging
+          filter_labels:
+            - security-test
+
+# Global configuration
+config:
+  # Default time periods
+  default_period: month
+  
+  # Chart refresh intervals (in minutes)
+  refresh_interval: 60
+  
+  # Default colors for charts
+  color_scheme:
+    critical: "#dc3545"    # Red
+    high: "#fd7e14"        # Orange
+    medium: "#ffc107"      # Yellow
+    low: "#28a745"         # Green
+    info: "#17a2b8"        # Blue
+  
+  # Data retention
+  data_retention:
+    vulnerabilities: 365   # days
+    pipelines: 90         # days
+    merge_requests: 180   # days
+    deployments: 365      # days
+  
+  # Notification settings
+  notifications:
+    # Alert when critical vulnerabilities exceed threshold
+    critical_vulnerabilities:
+      threshold: 5
+      enabled: true
+      recipients:
+        - security-team@company.com
+    
+    # Alert on pipeline security failures
+    security_scan_failures:
+      threshold: 3
+      enabled: true
+      recipients:
+        - devops-team@company.com
+
+# Access control for insights
+access_control:
+  # Who can view security insights
+  security_scanning:
+    viewers:
+      - security-team
+      - developers
+      - managers
+    editors:
+      - security-leads
+      - project-maintainers
+  
+  # Compliance insights access
+  compliance_monitoring:
+    viewers:
+      - compliance-team
+      - security-team
+      - audit-team
+    editors:
+      - compliance-leads
+
+# Integration settings
+integrations:
+  # Slack notifications for security alerts
+  slack:
+    webhook_url: "${SLACK_SECURITY_WEBHOOK}"
+    channels:
+      - "#security-alerts"
+      - "#devops-notifications"
+  
+  # Email notifications
+  email:
+    smtp_server: "${SMTP_SERVER}"
+    security_team: "security@company.com"
+    devops_team: "devops@company.com"
+  
+  # JIRA integration for security issues
+  jira:
+    server_url: "${JIRA_SERVER_URL}"
+    project_key: "SEC"
+    issue_type: "Security Vulnerability"
