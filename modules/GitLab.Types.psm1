@@ -133,21 +133,21 @@ class BusinessAlignment {
     [int]$ProjectId
     [string]$BusinessUnit
     [string]$StrategicInitiative
+    [int]$UserCount
+    [string]$RevenueImpact
+    [string]$Criticality
+    [string]$InvestmentPriority
+    [string]$BusinessValueScore
+    [string]$ROICategory
     [string]$StrategicImpact
     [string]$CustomerSegment
     [string]$RevenueModel
-    [string]$RevenueImpact
     [string]$BusinessCriticality
-    [string]$Criticality
-    [string]$InvestmentPriority
     [string]$StakeholderOwner
     [string]$AlignmentScore
-    [string]$BusinessValueScore
-    [string]$ROICategory
-    [int]$UserCount
 }
 
-class FeatureAdoption {
+class GitLabFeatureAdoption {
     [string]$ProjectName
     [int]$ProjectId
     [int]$FeatureAdoptionScore
@@ -168,7 +168,7 @@ class FeatureAdoption {
 }
 
 # Alias class kept for backward compatibility with analytics code
-class GitLabFeatureAdoption : FeatureAdoption {}
+class FeatureAdoption : GitLabFeatureAdoption {}
 
 class TeamCollaboration {
     [string]$ProjectName

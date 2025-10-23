@@ -1,6 +1,47 @@
 using module ./GitLab.Types.psm1
 Set-StrictMode -Version Latest
 
+if (-not (Get-Variable -Name GitLabPermissionWarnings -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:GitLabPermissionWarnings = @{}
+}
+
+function Get-SafePropertyValue {
+    param(
+        $Object,
+        [string]$Name
+    )
+
+    if ($null -eq $Object -or [string]::IsNullOrWhiteSpace($Name)) { return $null }
+
+    if ($Object -is [System.Collections.IDictionary]) {
+        try {
+            if ($Object.Contains($Name)) {
+                return $Object[$Name]
+            }
+        } catch {
+            # Some IDictionary implementations do not support Contains; ignore
+        }
+
+        if ($Object.PSObject.Methods.Name -contains 'ContainsKey') {
+            if ($Object.ContainsKey($Name)) {
+                return $Object[$Name]
+            }
+        }
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($property) {
+        return $property.Value
+    }
+    return $null
+}
+
+function Get-SafeList {
+    param($Data)
+    return @(ConvertTo-GitLabArray $Data | Where-Object { $_ -ne $null })
+}
+
 function Get-CodeQualityArtifactIssues {
     param(
         [int]$ProjectId,
@@ -9,13 +50,18 @@ function Get-CodeQualityArtifactIssues {
 
     if (-not $Jobs) { return $null }
 
-    $jobsWithArtifacts = $Jobs | Where-Object { $_.artifacts_file -and $_.artifacts_file.filename }
+    $jobsWithArtifacts = $Jobs | Where-Object {
+        $artifactFile = Get-SafePropertyValue -Object $_ -Name 'artifacts_file'
+        $artifactFile -and (Get-SafePropertyValue -Object $artifactFile -Name 'filename')
+    }
     if (-not $jobsWithArtifacts) { return $null }
 
     $sortedJobs = $jobsWithArtifacts | Sort-Object -Property { $_.finished_at } -Descending
 
     foreach ($job in $sortedJobs) {
-        $fileName = $job.artifacts_file.filename
+        $artifactFile = Get-SafePropertyValue -Object $job -Name 'artifacts_file'
+        if (-not $artifactFile) { continue }
+        $fileName = Get-SafePropertyValue -Object $artifactFile -Name 'filename'
         if ($fileName -notmatch 'codequality|code-quality|gl-code-quality') { continue }
 
         $encodedFile = [uri]::EscapeDataString($fileName)
@@ -102,6 +148,14 @@ function Invoke-GitLabAPI {
         if ($statusCode -eq 404) {
             Write-Verbose "API endpoint $Endpoint returned 404 Not Found; treating as unavailable."
             return $null
+        }
+
+        if ($statusCode -eq 403) {
+            $warningKey = ($Endpoint.Split('?')[0])
+            if (-not $script:GitLabPermissionWarnings.ContainsKey($warningKey)) {
+                $script:GitLabPermissionWarnings[$warningKey] = $true
+                Write-Log -Message "Access denied for $Endpoint. Verify the access token includes 'read_api', 'read_registry', and 'read_package_registry' scopes and that the user has access to the target project." -Level "Warning" -Component "Permissions"
+            }
         }
 
         Write-Warning "API call failed for $Endpoint : $($exception.Message)"
@@ -428,6 +482,8 @@ function Generate-CodeQualityReport {
             
             # Prefer GitLab code quality artifacts over repository traversal
             $hasArtifactData = $false
+            $repoFiles = $null
+            $repoFilesLoaded = $false
             $codeQualityJobs = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?scope[]=success`&per_page=50"))
 
             $artifactData = Get-CodeQualityArtifactIssues -ProjectId $project.ProjectId -Jobs $codeQualityJobs
@@ -439,10 +495,10 @@ function Generate-CodeQualityReport {
                 $securityIssues = $issues | Where-Object { $_.categories -and ($_.categories -contains "Security") }
                 $duplicationIssues = $issues | Where-Object { $_.check_name -match "duplicate" }
                 
-                $qualityReport.CodeSmells = ($issues | Where-Object { $_.severity -in @("minor", "info", "unknown") }).Count
-                $qualityReport.Bugs = ($issues | Where-Object { $_.severity -in @("major", "critical") }).Count
+                $qualityReport.CodeSmells = @($issues | Where-Object { $_.severity -in @("minor", "info", "unknown") }).Count
+                $qualityReport.Bugs = @($issues | Where-Object { $_.severity -in @("major", "critical") }).Count
                 $qualityReport.Vulnerabilities = if ($securityIssues) { $securityIssues.Count } else { 0 }
-                $qualityReport.SecurityHotspots = if ($securityIssues) { ($securityIssues | Where-Object { $_.severity -ne "info" }).Count } else { 0 }
+                $qualityReport.SecurityHotspots = if ($securityIssues) { @($securityIssues | Where-Object { $_.severity -ne "info" }).Count } else { 0 }
                 $qualityReport.DuplicatedLines = if ($duplicationIssues) { $duplicationIssues.Count } else { 0 }
                 $qualityReport.DuplicationPercentage = if ($totalIssues -gt 0 -and $duplicationIssues) { [math]::Round(($duplicationIssues.Count / $totalIssues) * 100, 1) } else { 0 }
                 
@@ -483,6 +539,26 @@ function Generate-CodeQualityReport {
             }
             
             if (-not $hasArtifactData) {
+                if (-not $repoFilesLoaded) {
+                    try {
+                        $repoFiles = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/repository/tree?recursive=true" -AllPages))
+                    } catch {
+                        Write-Log -Message "Failed to retrieve repository files for project $($project.ProjectName): $($_.Exception.Message)" -Level "Verbose" -Component "CodeQuality"
+                        $repoFiles = @()
+                    }
+                    $repoFilesLoaded = $true
+                }
+
+                if ($qualityReport.TestsCount -eq 0 -and $repoFiles) {
+                    $testFiles = $repoFiles | Where-Object {
+                        $_ -and $_.PSObject.Properties.Name -contains 'type' -and $_.type -eq 'blob' -and (
+                            ($_.PSObject.Properties.Name -contains 'path' -and ($_.path -match '(?i)test|spec')) -or
+                            ($_.PSObject.Properties.Name -contains 'name' -and ($_.name -match '(?i)test|spec'))
+                        )
+                    }
+                    $qualityReport.TestsCount = if ($testFiles) { $testFiles.Count } else { 0 }
+                }
+
                 # Estimate metrics based on project characteristics when artifacts are unavailable
                 $activityFactor = if ($project.DaysSinceLastActivity -le 30) { 1.0 } elseif ($project.DaysSinceLastActivity -le 90) { 0.7 } else { 0.3 }
                 
@@ -561,13 +637,41 @@ function Generate-CodeQualityReport {
             
             # Set coverage percentage if not already set
             if ($qualityReport.CoveragePercentage -eq "0%") {
-                # Estimate coverage based on test files ratio
-                $totalFiles = if ($repoFiles) { ($repoFiles | Where-Object { $_.type -eq "blob" }).Count } else { 1 }
-                $testRatio = if ($totalFiles -gt 0) { ($qualityReport.TestsCount / $totalFiles) } else { 0 }
-                $estimatedCoverage = [math]::Min(95, [math]::Max(0, [math]::Round($testRatio * 100)))
-                $qualityReport.CoveragePercentage = "$estimatedCoverage%"
+                if (-not $repoFilesLoaded) {
+                    try {
+                        $repoFiles = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/repository/tree?recursive=true" -AllPages))
+                    } catch {
+                        Write-Log -Message "Failed to retrieve repository files for project $($project.ProjectName): $($_.Exception.Message)" -Level "Verbose" -Component "CodeQuality"
+                        $repoFiles = @()
+                    }
+                    $repoFilesLoaded = $true
+
+                    if ($qualityReport.TestsCount -eq 0 -and $repoFiles) {
+                        $testFiles = $repoFiles | Where-Object {
+                            $_ -and $_.PSObject.Properties.Name -contains 'type' -and $_.type -eq 'blob' -and (
+                                ($_.PSObject.Properties.Name -contains 'path' -and ($_.path -match '(?i)test|spec')) -or
+                                ($_.PSObject.Properties.Name -contains 'name' -and ($_.name -match '(?i)test|spec'))
+                            )
+                        }
+                        $qualityReport.TestsCount = if ($testFiles) { $testFiles.Count } else { 0 }
+                    }
+                }
+
+                if ($repoFiles) {
+                    $fileBlobs = $repoFiles | Where-Object { $_ -and $_.PSObject.Properties.Name -contains 'type' -and $_.type -eq 'blob' }
+                    $totalFiles = if ($fileBlobs) { $fileBlobs.Count } else { 0 }
+                    if ($totalFiles -gt 0) {
+                        $testRatio = $qualityReport.TestsCount / $totalFiles
+                        $estimatedCoverage = [math]::Min(95, [math]::Max(0, [math]::Round($testRatio * 100)))
+                        $qualityReport.CoveragePercentage = "$estimatedCoverage%"
+                    } else {
+                        $qualityReport.CoveragePercentage = "N/A"
+                    }
+                } else {
+                    $qualityReport.CoveragePercentage = "N/A"
+                }
             }
-            
+
             $codeQualityReports += $qualityReport
             
         } catch {
@@ -784,7 +888,7 @@ function Generate-TeamActivityReport {
                     
                     if ($userMRs -and $userMRs.Count -gt 0) {
                         $userStats.MergeRequestsCreated += $userMRs.Count
-                        $userStats.MergeRequestsMerged += ($userMRs | Where-Object { $_.state -eq 'merged' }).Count
+                        $userStats.MergeRequestsMerged += @($userMRs | Where-Object { $_.state -eq 'merged' }).Count
                     }
                     
                     # Get user's recent issues in this project (limit to first page)
@@ -924,10 +1028,10 @@ function Generate-TechnologyStackReport {
         try {
             $projectDetails = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)?statistics=true&with_custom_attributes=true&with_topics=true"
             $languagesResponse = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/languages"
-            $packages = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/packages?per_page=50"))
-            $jobs = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?per_page=50"))
-            $registryRepos = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/registry/repositories?per_page=20"))
-            $environments = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments?per_page=20"))
+            $packages = Get-SafeList (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/packages?per_page=50")
+            $jobs = Get-SafeList (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/jobs?per_page=50")
+            $registryRepos = Get-SafeList (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/registry/repositories?per_page=20")
+            $environments = Get-SafeList (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments?per_page=20")
 
             $languageMap = @{}
             if ($languagesResponse) {
@@ -950,36 +1054,60 @@ function Generate-TechnologyStackReport {
                     $percentage = if ($totalBytes -gt 0) { [math]::Round(($entry.Value / $totalBytes) * 100, 1) } else { 0 }
                     $languageList += "$($entry.Name) ($percentage`%)"
                 }
-            } elseif ($projectDetails -and $projectDetails.programming_language) {
-                $primaryLanguage = $projectDetails.programming_language
-                $languageList += $primaryLanguage
+            } else {
+                $languageValue = Get-SafePropertyValue -Object $projectDetails -Name 'programming_language'
+                if ($languageValue) {
+                    $primaryLanguage = [string]$languageValue
+                    $languageList += $primaryLanguage
+                }
             }
 
             $tokens = @()
-            if ($projectDetails) {
-                if ($projectDetails.topics) { $tokens += $projectDetails.topics }
-                if ($projectDetails.description) { $tokens += $projectDetails.description }
+            $topicsValue = Get-SafePropertyValue -Object $projectDetails -Name 'topics'
+            if ($topicsValue) { $tokens += $topicsValue }
+            $descriptionValue = Get-SafePropertyValue -Object $projectDetails -Name 'description'
+            if ($descriptionValue) { $tokens += $descriptionValue }
+            $tagListValue = Get-SafePropertyValue -Object $projectDetails -Name 'tag_list'
+            if ($tagListValue) { $tokens += $tagListValue }
+
+            foreach ($pkg in $packages) {
+                $pkgName = Get-SafePropertyValue -Object $pkg -Name 'name'
+                if ($pkgName) { $tokens += $pkgName }
+                $pkgType = Get-SafePropertyValue -Object $pkg -Name 'package_type'
+                if ($pkgType) { $tokens += $pkgType }
             }
 
-            if ($packages.Count -gt 0) {
-                $tokens += ($packages | ForEach-Object { $_.name; $_.package_type })
+            foreach ($job in $jobs) {
+                $jobName = Get-SafePropertyValue -Object $job -Name 'name'
+                if ($jobName) { $tokens += $jobName }
+                $jobStage = Get-SafePropertyValue -Object $job -Name 'stage'
+                if ($jobStage) { $tokens += $jobStage }
+                $jobTags = Get-SafePropertyValue -Object $job -Name 'tag_list'
+                if ($jobTags) { $tokens += $jobTags }
+                $artifacts = Get-SafePropertyValue -Object $job -Name 'artifacts'
+                if ($artifacts) {
+                    foreach ($artifact in @(ConvertTo-GitLabArray $artifacts)) {
+                        if ($null -eq $artifact) { continue }
+                        $artifactType = Get-SafePropertyValue -Object $artifact -Name 'file_type'
+                        if ($artifactType) { $tokens += $artifactType }
+                        $artifactName = Get-SafePropertyValue -Object $artifact -Name 'filename'
+                        if ($artifactName) { $tokens += $artifactName }
+                    }
+                }
             }
 
-            if ($jobs.Count -gt 0) {
-                $tokens += ($jobs | ForEach-Object {
-                    $_.name
-                    $_.stage
-                    if ($_.tag_list) { $_.tag_list }
-                    if ($_.artifacts -and $_.artifacts.Count -gt 0) { $_.artifacts | ForEach-Object { $_.file_type } }
-                })
+            foreach ($environment in $environments) {
+                $envName = Get-SafePropertyValue -Object $environment -Name 'name'
+                if ($envName) { $tokens += $envName }
+                $envSlug = Get-SafePropertyValue -Object $environment -Name 'slug'
+                if ($envSlug) { $tokens += $envSlug }
             }
 
-            if ($environments.Count -gt 0) {
-                $tokens += ($environments | ForEach-Object { $_.name; $_.slug })
-            }
-
-            if ($registryRepos.Count -gt 0) {
-                $tokens += ($registryRepos | ForEach-Object { $_.name; $_.path })
+            foreach ($registry in $registryRepos) {
+                $regName = Get-SafePropertyValue -Object $registry -Name 'name'
+                if ($regName) { $tokens += $regName }
+                $regPath = Get-SafePropertyValue -Object $registry -Name 'path'
+                if ($regPath) { $tokens += $regPath }
             }
 
             $tokens = $tokens | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
@@ -1023,15 +1151,6 @@ function Generate-TechnologyStackReport {
             elseif ($tokens | Where-Object { $_ -match '\bdocker\b' -or $_ -match '\bcontainer\b' }) {
                 $deploymentPlatform = "Container-based"
             }
-            elseif ($tokens | Where-Object { $_ -match '\bheroku\b' }) {
-                $deploymentPlatform = "Heroku"
-            }
-            elseif ($tokens | Where-Object { $_ -match '\bnetlify\b' }) {
-                $deploymentPlatform = "Netlify"
-            }
-            elseif ($tokens | Where-Object { $_ -match '\bvercel\b' }) {
-                $deploymentPlatform = "Vercel"
-            }
             elseif ($tokens | Where-Object { $_ -match '\baws\b' -or $_ -match '\beks\b' -or $_ -match '\blambda\b' }) {
                 $deploymentPlatform = "AWS"
             }
@@ -1041,11 +1160,84 @@ function Generate-TechnologyStackReport {
             elseif ($tokens | Where-Object { $_ -match '\bgcp\b' -or $_ -match '\bcloud run\b' -or $_ -match '\bapp engine\b' }) {
                 $deploymentPlatform = "GCP"
             }
+            elseif ($tokens | Where-Object { $_ -match '\bheroku\b' }) {
+                $deploymentPlatform = "Heroku"
+            }
+            elseif ($tokens | Where-Object { $_ -match '\bnetlify\b' }) {
+                $deploymentPlatform = "Netlify"
+            }
+            elseif ($tokens | Where-Object { $_ -match '\bvercel\b' }) {
+                $deploymentPlatform = "Vercel"
+            }
             elseif ($environments -and $environments.Count -gt 0) {
                 $deploymentPlatform = "GitLab Environments"
             }
 
+            # Targeted stack identification (ASP.NET, Java, SharePoint, PHP, Documentation)
+            $normalizedTokens = $tokens | ForEach-Object { ($_ | Out-String).Trim().ToLowerInvariant() } | Where-Object { $_ }
+            $stackSignals = @{
+                'aspnet' = $false
+                'java' = $false
+                'php' = $false
+                'sharepoint' = $false
+                'documentation' = $false
+            }
+
+            if ($primaryLanguage -imatch '^c#' -or $primaryLanguage -eq 'C#') {
+                $stackSignals['aspnet'] = $true
+            }
+            if ($primaryLanguage -eq 'Java') {
+                $stackSignals['java'] = $true
+            }
+            if ($primaryLanguage -eq 'PHP') {
+                $stackSignals['php'] = $true
+            }
+            if ($primaryLanguage -eq 'Unknown' -and $languageMap.Count -eq 0) {
+                $stackSignals['documentation'] = $true
+            }
+
+            foreach ($token in $normalizedTokens) {
+                if ($token -match 'asp\.?net|dotnet|csharp|razor|blazor|microsoft\.aspnet') { $stackSignals['aspnet'] = $true }
+                if ($token -match '\bjava\b|spring|gradle|maven') { $stackSignals['java'] = $true }
+                if ($token -match '\bphp\b|composer|laravel|symfony|wordpress') { $stackSignals['php'] = $true }
+                if ($token -match 'sharepoint|spfx|power platform|ms graph') { $stackSignals['sharepoint'] = $true }
+                if ($token -match 'documentation|docs|mkdocs|docusaurus|readthedocs|mdbook|tech writing') { $stackSignals['documentation'] = $true }
+            }
+
+            if ($packages | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'package_type') -match 'maven|gradle' }) { $stackSignals['java'] = $true }
+            if ($packages | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'package_type') -match 'composer' }) { $stackSignals['php'] = $true }
+            if ($jobs | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'name') -match 'dotnet|aspnet' }) { $stackSignals['aspnet'] = $true }
+            if ($jobs | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'name') -match 'gradle|maven' }) { $stackSignals['java'] = $true }
+            if ($jobs | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'name') -match 'composer|phpunit' }) { $stackSignals['php'] = $true }
+
+            $detectedStacks = @()
+            if ($stackSignals['aspnet']) { $detectedStacks += 'ASP.NET' }
+            if ($stackSignals['java']) { $detectedStacks += 'Java' }
+            if ($stackSignals['php']) { $detectedStacks += 'PHP' }
+            if ($stackSignals['sharepoint']) { $detectedStacks += 'SharePoint' }
+            if ($stackSignals['documentation']) { $detectedStacks += 'Documentation' }
+
+            if ($detectedStacks.Count -eq 0 -and $primaryLanguage -and $primaryLanguage -ne 'Unknown') {
+                $detectedStacks += $primaryLanguage
+            }
+
             $frameworkValue = if ($detectedFrameworks.Count -gt 0) { ($detectedFrameworks | Select-Object -Unique) -join ", " } else { "None detected" }
+            if ($stackSignals['aspnet'] -and $frameworkValue -eq "None detected") {
+                $frameworkValue = "ASP.NET"
+            }
+            if ($stackSignals['java'] -and $frameworkValue -eq "None detected") {
+                $frameworkValue = "Spring / Java"
+            }
+            if ($stackSignals['php'] -and $frameworkValue -eq "None detected") {
+                $frameworkValue = "PHP Ecosystem"
+            }
+            if ($stackSignals['sharepoint']) {
+                $frameworkValue = "SharePoint"
+            }
+            if ($stackSignals['documentation']) {
+                $frameworkValue = "Documentation"
+            }
+
             $databaseValue = if ($detectedDatabases.Count -gt 0) { ($detectedDatabases | Select-Object -Unique) -join ", " } else { "None detected" }
             $buildToolValue = if ($detectedBuildTools.Count -gt 0) { ($detectedBuildTools | Select-Object -Unique) -join ", " } else { "Not detected" }
             $containerValue = if ($containerizationComponents.Count -gt 0) { $containerizationComponents -join ", " } else { "None" }
@@ -1053,9 +1245,9 @@ function Generate-TechnologyStackReport {
             $testingValue = if ($detectedTesting.Count -gt 0) { ($detectedTesting | Select-Object -Unique) -join ", " } else { "None detected" }
 
             $techStackSummary = @()
-            if ($primaryLanguage -and $primaryLanguage -ne "Unknown") { $techStackSummary += $primaryLanguage }
+            if ($detectedStacks.Count -gt 0) { $techStackSummary += ($detectedStacks | Select-Object -Unique) }
+            elseif ($primaryLanguage -and $primaryLanguage -ne "Unknown") { $techStackSummary += $primaryLanguage }
             if ($frameworkValue -and $frameworkValue -ne "None detected") { $techStackSummary += $frameworkValue }
-            if ($databaseValue -and $databaseValue -ne "None detected") { $techStackSummary += $databaseValue }
             if ($deploymentPlatform -and $deploymentPlatform -ne "Unknown") { $techStackSummary += $deploymentPlatform }
             if ($containerValue -and $containerValue -ne "None") { $techStackSummary += $containerValue }
 
@@ -1216,8 +1408,9 @@ function Generate-BusinessAlignmentReport {
             
             # Analyze project name, description, and path for business context
             $projectText = "$($project.ProjectName) $($project.ProjectPath) "
-            if ($projectDetails -and $projectDetails.description) {
-                $projectText += $projectDetails.description
+            $projectDescription = Get-SafePropertyValue -Object $projectDetails -Name 'description'
+            if ($projectDescription) {
+                $projectText += $projectDescription
             }
             $projectTextLower = $projectText.ToLower()
             
@@ -1259,8 +1452,9 @@ function Generate-BusinessAlignmentReport {
             
             # Get project labels for additional context
             $projectLabels = @()
-            if ($projectDetails -and $projectDetails.tag_list) {
-                $projectLabels = $projectDetails.tag_list
+            $tagListValue = Get-SafePropertyValue -Object $projectDetails -Name 'tag_list'
+            if ($tagListValue) {
+                $projectLabels = $tagListValue
             }
             
             # Analyze labels for business context
@@ -1733,36 +1927,69 @@ function Generate-DevOpsMaturityReport {
             $environments = @(ConvertTo-GitLabArray (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments?per_page=20"))
 
             $tokens = @()
-            if ($projectDetails -and $projectDetails.topics) { $tokens += $projectDetails.topics }
-            if ($projectDetails -and $projectDetails.description) { $tokens += $projectDetails.description }
+            $topicsValue = Get-SafePropertyValue -Object $projectDetails -Name 'topics'
+            if ($topicsValue) { $tokens += $topicsValue }
+            $descriptionValue = Get-SafePropertyValue -Object $projectDetails -Name 'description'
+            if ($descriptionValue) { $tokens += $descriptionValue }
 
             if ($jobs.Count -gt 0) {
                 $tokens += ($jobs | ForEach-Object {
-                    $_.name
-                    $_.stage
-                    if ($_.tag_list) { $_.tag_list }
-                    if ($_.coverage) { "coverage" }
-                    if ($_.artifacts_file) { $_.artifacts_file.filename }
-                    if ($_.artifacts -and $_.artifacts.Count -gt 0) { $_.artifacts | ForEach-Object { $_.file_type; $_.filename } }
+                    $jobTokens = @()
+                    $jobName = Get-SafePropertyValue -Object $_ -Name 'name'
+                    if ($jobName) { $jobTokens += $jobName }
+                    $jobStage = Get-SafePropertyValue -Object $_ -Name 'stage'
+                    if ($jobStage) { $jobTokens += $jobStage }
+                    $jobTags = Get-SafePropertyValue -Object $_ -Name 'tag_list'
+                    if ($jobTags) { $jobTokens += $jobTags }
+                    $jobCoverage = Get-SafePropertyValue -Object $_ -Name 'coverage'
+                    if ($jobCoverage) { $jobTokens += "coverage" }
+                    $artifactFile = Get-SafePropertyValue -Object $_ -Name 'artifacts_file'
+                    if ($artifactFile) {
+                        $artifactFilename = Get-SafePropertyValue -Object $artifactFile -Name 'filename'
+                        if ($artifactFilename) { $jobTokens += $artifactFilename }
+                    }
+                    $jobArtifacts = Get-SafePropertyValue -Object $_ -Name 'artifacts'
+                    if ($jobArtifacts) {
+                        foreach ($artifact in @(ConvertTo-GitLabArray $jobArtifacts)) {
+                            if ($null -eq $artifact) { continue }
+                            $artifactType = Get-SafePropertyValue -Object $artifact -Name 'file_type'
+                            if ($artifactType) { $jobTokens += $artifactType }
+                            $artifactName = Get-SafePropertyValue -Object $artifact -Name 'filename'
+                            if ($artifactName) { $jobTokens += $artifactName }
+                        }
+                    }
+                    return $jobTokens
                 })
             }
 
             if ($pipelines.Count -gt 0) {
-                $tokens += ($pipelines | ForEach-Object { $_.status })
+                foreach ($pipeline in $pipelines) {
+                    $status = Get-SafePropertyValue -Object $pipeline -Name 'status'
+                    if ($status) { $tokens += $status }
+                }
             }
 
             if ($deployments.Count -gt 0) {
-                $tokens += ($deployments | ForEach-Object {
-                    $_.status
-                    if ($_.deployable) {
-                        $_.deployable.name
-                        $_.deployable.stage
+                foreach ($deployment in $deployments) {
+                    $deploymentStatus = Get-SafePropertyValue -Object $deployment -Name 'status'
+                    if ($deploymentStatus) { $tokens += $deploymentStatus }
+                    $deployable = Get-SafePropertyValue -Object $deployment -Name 'deployable'
+                    if ($deployable) {
+                        $deployableName = Get-SafePropertyValue -Object $deployable -Name 'name'
+                        if ($deployableName) { $tokens += $deployableName }
+                        $deployableStage = Get-SafePropertyValue -Object $deployable -Name 'stage'
+                        if ($deployableStage) { $tokens += $deployableStage }
                     }
-                })
+                }
             }
 
             if ($environments.Count -gt 0) {
-                $tokens += ($environments | ForEach-Object { $_.name; $_.slug })
+                foreach ($environment in $environments) {
+                    $envName = Get-SafePropertyValue -Object $environment -Name 'name'
+                    if ($envName) { $tokens += $envName }
+                    $envSlug = Get-SafePropertyValue -Object $environment -Name 'slug'
+                    if ($envSlug) { $tokens += $envSlug }
+                }
             }
 
             $tokens = $tokens | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
@@ -1772,13 +1999,17 @@ function Generate-DevOpsMaturityReport {
             }
 
             if (-not $maturity.AutomatedTesting -and $jobs.Count -gt 0) {
-                $coverageJob = $jobs | Where-Object { $_.coverage } | Select-Object -First 1
+                $coverageJob = $jobs | Where-Object { $null -ne (Get-SafePropertyValue -Object $_ -Name 'coverage') } | Select-Object -First 1
                 if ($coverageJob) { $maturity.AutomatedTesting = $true }
             }
 
             $maturity.AutomatedDeployment = ($deployments.Count -gt 0) -or (& $hasMatch $tokens 'deploy|release|delivery|promote|helm|kubectl|cd\b|argo')
             if (-not $maturity.AutomatedDeployment -and $jobs.Count -gt 0) {
-                $maturity.AutomatedDeployment = ($jobs | Where-Object { $_.stage -eq 'deploy' -or $_.name -match 'deploy|release|delivery|promote' } | Select-Object -First 1) -ne $null
+                $maturity.AutomatedDeployment = ($jobs | Where-Object {
+                    $jobStage = Get-SafePropertyValue -Object $_ -Name 'stage'
+                    $jobName = Get-SafePropertyValue -Object $_ -Name 'name'
+                    ($jobStage -and $jobStage -eq 'deploy') -or ($jobName -and $jobName -match 'deploy|release|delivery|promote')
+                } | Select-Object -First 1) -ne $null
             }
 
             $maturity.InfrastructureAsCode = (& $hasMatch $tokens 'terraform|pulumi|ansible|cloudformation|iac|kustomize|packer|helm')
@@ -1786,20 +2017,47 @@ function Generate-DevOpsMaturityReport {
             $maturity.SecurityIntegration = (& $hasMatch $tokens 'sast|dast|dependency|container|secret|security|trivy|grype|bandit|zap')
 
             if ($environments.Count -gt 0 -and -not $maturity.MonitoringIntegration) {
-                $maturity.MonitoringIntegration = ($environments | Where-Object { $_.name -match 'monitor|observability' }) -ne $null
+                $maturity.MonitoringIntegration = ($environments | Where-Object {
+                    $envName = Get-SafePropertyValue -Object $_ -Name 'name'
+                    $envName -and $envName -match 'monitor|observability'
+                } | Select-Object -First 1) -ne $null
             }
 
-            if ($pipelines -and $pipelines.Count -gt 1) {
-                $sortedPipelines = $pipelines | Sort-Object { [datetime]$_.created_at }
-                $firstPipelineTime = [datetime]$sortedPipelines[0].created_at
-                $lastPipelineTime = [datetime]$sortedPipelines[-1].created_at
-                $spanDays = ($lastPipelineTime - $firstPipelineTime).TotalDays
-                if ($spanDays -gt 0) {
-                    $maturity.DeploymentFrequency = [math]::Round($sortedPipelines.Count / $spanDays, 2)
+            $pipelineRecords = @()
+            if ($pipelines) {
+                foreach ($pipeline in $pipelines) {
+                    $createdAtValue = Get-SafePropertyValue -Object $pipeline -Name 'created_at'
+                    $statusValue = Get-SafePropertyValue -Object $pipeline -Name 'status'
+                    $durationValue = Get-SafePropertyValue -Object $pipeline -Name 'duration'
+                    $createdAtDate = $null
+                    if ($createdAtValue) {
+                        try { $createdAtDate = [datetime]$createdAtValue } catch { $createdAtDate = $null }
+                    }
+                    $pipelineRecords += [pscustomobject]@{
+                        Raw       = $pipeline
+                        CreatedAt = $createdAtDate
+                        Status    = $statusValue
+                        Duration  = $durationValue
+                    }
                 }
-                $failedPipelines = ($sortedPipelines | Where-Object { $_.status -in @('failed', 'canceled') }).Count
-                if ($sortedPipelines.Count -gt 0) {
-                    $maturity.ChangeFailureRate = [math]::Round(($failedPipelines / $sortedPipelines.Count) * 100, 1)
+            }
+
+            if ($pipelineRecords.Count -gt 1) {
+                $pipelinesWithDates = @($pipelineRecords | Where-Object { $_.CreatedAt })
+                if ($pipelinesWithDates.Count -gt 1) {
+                    $sortedPipelineRecords = $pipelinesWithDates | Sort-Object CreatedAt
+                    $firstPipelineTime = $sortedPipelineRecords[0].CreatedAt
+                    $lastPipelineTime = $sortedPipelineRecords[-1].CreatedAt
+                    if ($firstPipelineTime -and $lastPipelineTime) {
+                        $spanDays = ($lastPipelineTime - $firstPipelineTime).TotalDays
+                        if ($spanDays -gt 0) {
+                            $maturity.DeploymentFrequency = [math]::Round($sortedPipelineRecords.Count / $spanDays, 2)
+                        }
+                    }
+                    $failedPipelines = @($sortedPipelineRecords | Where-Object { $_.Status -and $_.Status -in @('failed', 'canceled') }).Count
+                    if ($sortedPipelineRecords.Count -gt 0) {
+                        $maturity.ChangeFailureRate = [math]::Round(($failedPipelines / $sortedPipelineRecords.Count) * 100, 1)
+                    }
                 }
             }
 
@@ -1813,8 +2071,15 @@ function Generate-DevOpsMaturityReport {
             }
 
             $pipelineDurations = @()
-            if ($pipelines) {
-                $pipelineDurations = $pipelines | Where-Object { $_.duration } | ForEach-Object { [double]$_.duration / 3600 }
+            foreach ($record in $pipelineRecords) {
+                $durationValue = $record.Duration
+                if ($null -ne $durationValue -and $durationValue -ne '') {
+                    try {
+                        $pipelineDurations += ([double]$durationValue / 3600)
+                    } catch {
+                        # ignore non-numeric duration values
+                    }
+                }
             }
             if ($pipelineDurations.Count -gt 0) {
                 $maturity.LeadTime = [math]::Round(($pipelineDurations | Measure-Object -Average).Average, 2)
@@ -1822,13 +2087,22 @@ function Generate-DevOpsMaturityReport {
                 $maturity.LeadTime = [math]::Max(0.5, [math]::Min(30, $project.DaysSinceLastActivity / [math]::Max(1, $project.MergedMergeRequests)))
             }
 
+            $recoveryDurations = @()
             if ($deployments) {
-                $recoveryDurations = $deployments | Where-Object { $_.created_at -and $_.finished_at } | ForEach-Object {
-                    ([datetime]$_.finished_at - [datetime]$_.created_at).TotalHours
+                foreach ($deployment in $deployments) {
+                    $createdAt = Get-SafePropertyValue -Object $deployment -Name 'created_at'
+                    $finishedAt = Get-SafePropertyValue -Object $deployment -Name 'finished_at'
+                    if ($createdAt -and $finishedAt) {
+                        try {
+                            $recoveryDurations += (([datetime]$finishedAt - [datetime]$createdAt).TotalHours)
+                        } catch {
+                            # ignore malformed dates
+                        }
+                    }
                 }
-                if ($recoveryDurations.Count -gt 0) {
-                    $maturity.RecoveryTime = [math]::Round(($recoveryDurations | Measure-Object -Average).Average, 2)
-                }
+            }
+            if ($recoveryDurations.Count -gt 0) {
+                $maturity.RecoveryTime = [math]::Round(($recoveryDurations | Measure-Object -Average).Average, 2)
             }
 
             $doraScore = 0

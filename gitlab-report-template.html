@@ -429,6 +429,18 @@
             border-radius: 10px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.08);
         }
+
+        .chart-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 220px;
+            border: 2px dashed var(--light);
+            border-radius: 10px;
+            color: #777;
+            font-style: italic;
+            background: #f8f9fa;
+        }
         
         .chart-title {
             font-size: 1.2em;
@@ -1754,33 +1766,38 @@ $(foreach($business in $BusinessReports) {
             }
         });
         
-        const collaborationChart = new Chart(document.getElementById('collaborationChart'), {
-            type: 'bar',
-            data: {
-                labels: ['Avg Collaboration Score'],
-                datasets: [{
-                    label: 'Collaboration Effectiveness (%)',
-                    data: [$avgCollaborationScore],
-                    backgroundColor: '#17a2b8',
-                    borderColor: '#138496',
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        const collaborationHasData = $collaborationChartHasData;
+        if (collaborationHasData) {
+            new Chart(document.getElementById('collaborationChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Avg Collaboration Score'],
+                    datasets: [{
+                        label: 'Collaboration Effectiveness (%)',
+                        data: [$avgCollaborationScore],
+                        backgroundColor: '#17a2b8',
+                        borderColor: '#138496',
+                        borderWidth: 2
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            renderEmptyState('collaborationChart', 'Collaboration insights are not available for this period.');
+        }
         
         const devOpsMaturityChart = new Chart(document.getElementById('devOpsMaturityChart'), {
             type: 'radar',
@@ -1813,32 +1830,37 @@ $(foreach($business in $BusinessReports) {
             }
         });
         
-        const barriersChart = new Chart(document.getElementById('barriersChart'), {
-            type: 'bar',
-            data: {
-                labels: ['Projects with Critical Barriers'],
-                datasets: [{
-                    label: 'Critical Barriers Requiring Support',
-                    data: [$criticalBarriers],
-                    backgroundColor: '#dc3545',
-                    borderColor: '#c82333',
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        const barriersHaveData = $barriersChartHasData;
+        if (barriersHaveData) {
+            new Chart(document.getElementById('barriersChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Projects with Critical Barriers'],
+                    datasets: [{
+                        label: 'Critical Barriers Requiring Support',
+                        data: [$criticalBarriers],
+                        backgroundColor: '#dc3545',
+                        borderColor: '#c82333',
+                        borderWidth: 2
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            renderEmptyState('barriersChart', 'Adoption barrier analysis is not available for this period.');
+        }
         
         // Chart configurations
         const adoptionChart = new Chart(document.getElementById('adoptionChart'), {

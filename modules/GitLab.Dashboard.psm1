@@ -142,13 +142,13 @@ function New-ConsolidatedDashboardFromTemplate {
 
     # Calculate all metrics needed for the template with safe division
     $totalProjects = if ($ProjectReports) { $ProjectReports.Count } else { 0 }
-    $activeProjects = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.DaysSinceLastActivity -le 30 }).Count } else { 0 }
-    $staleProjects = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.DaysSinceLastActivity -gt 90 }).Count } else { 0 }
+    $activeProjects = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.DaysSinceLastActivity -le 30 }).Count } else { 0 }
+    $staleProjects = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.DaysSinceLastActivity -gt 90 }).Count } else { 0 }
     
-    $highAdoption = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.AdoptionLevel -eq 'High' }).Count } else { 0 }
-    $mediumAdoption = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.AdoptionLevel -eq 'Medium' }).Count } else { 0 }
-    $lowAdoption = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.AdoptionLevel -eq 'Low' }).Count } else { 0 }
-    $veryLowAdoption = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.AdoptionLevel -eq 'Very Low' }).Count } else { 0 }
+    $highAdoption = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.AdoptionLevel -eq 'High' }).Count } else { 0 }
+    $mediumAdoption = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.AdoptionLevel -eq 'Medium' }).Count } else { 0 }
+    $lowAdoption = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.AdoptionLevel -eq 'Low' }).Count } else { 0 }
+    $veryLowAdoption = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.AdoptionLevel -eq 'Very Low' }).Count } else { 0 }
     
     # Safe division for adoption rate
     $adoptionRate = if ($totalProjects -gt 0) { 
@@ -163,7 +163,7 @@ function New-ConsolidatedDashboardFromTemplate {
     
     # Security metrics
     $totalCriticalVulns = if ($SecurityScanResults) { ($SecurityScanResults | Measure-Object -Property CriticalVulnerabilities -Sum).Sum } else { 0 }
-    $projectsWithCriticalVulns = if ($SecurityScanResults) { ($SecurityScanResults | Where-Object { $_.CriticalVulnerabilities -gt 0 }).Count } else { 0 }
+    $projectsWithCriticalVulns = if ($SecurityScanResults) { @($SecurityScanResults | Where-Object { $_.CriticalVulnerabilities -gt 0 }).Count } else { 0 }
     
     # Code quality metrics
     $avgMaintainability = if ($CodeQualityReports -and $CodeQualityReports.Count -gt 0) {
@@ -177,22 +177,22 @@ function New-ConsolidatedDashboardFromTemplate {
     } else { 0 }
     
     # Activity distribution
-    $activity7Days = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.DaysSinceLastActivity -le 7 }).Count } else { 0 }
-    $activity30Days = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.DaysSinceLastActivity -gt 7 -and $_.DaysSinceLastActivity -le 30 }).Count } else { 0 }
-    $activity90Days = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.DaysSinceLastActivity -gt 30 -and $_.DaysSinceLastActivity -le 90 }).Count } else { 0 }
-    $activityOlder = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.DaysSinceLastActivity -gt 90 }).Count } else { 0 }
+    $activity7Days = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.DaysSinceLastActivity -le 7 }).Count } else { 0 }
+    $activity30Days = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.DaysSinceLastActivity -gt 7 -and $_.DaysSinceLastActivity -le 30 }).Count } else { 0 }
+    $activity90Days = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.DaysSinceLastActivity -gt 30 -and $_.DaysSinceLastActivity -le 90 }).Count } else { 0 }
+    $activityOlder = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.DaysSinceLastActivity -gt 90 }).Count } else { 0 }
 
     # Pipeline success distribution
-    $pipelineExcellent = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.PipelineSuccessRate -gt 0.9 }).Count } else { 0 }
-    $pipelineGood = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.PipelineSuccessRate -gt 0.7 -and $_.PipelineSuccessRate -le 0.9 }).Count } else { 0 }
-    $pipelineFair = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.PipelineSuccessRate -gt 0.5 -and $_.PipelineSuccessRate -le 0.7 }).Count } else { 0 }
-    $pipelinePoor = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.PipelineSuccessRate -le 0.5 -and $_.PipelinesTotal -gt 0 }).Count } else { 0 }
-    $pipelineNone = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.PipelinesTotal -eq 0 }).Count } else { 0 }
+    $pipelineExcellent = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.PipelineSuccessRate -gt 0.9 }).Count } else { 0 }
+    $pipelineGood = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.PipelineSuccessRate -gt 0.7 -and $_.PipelineSuccessRate -le 0.9 }).Count } else { 0 }
+    $pipelineFair = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.PipelineSuccessRate -gt 0.5 -and $_.PipelineSuccessRate -le 0.7 }).Count } else { 0 }
+    $pipelinePoor = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.PipelineSuccessRate -le 0.5 -and $_.PipelinesTotal -gt 0 }).Count } else { 0 }
+    $pipelineNone = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.PipelinesTotal -eq 0 }).Count } else { 0 }
 
     # Team contribution distribution
-    $singleContributor = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.ContributorsCount -eq 1 }).Count } else { 0 }
-    $smallTeam = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.ContributorsCount -ge 2 -and $_.ContributorsCount -le 3 }).Count } else { 0 }
-    $largeTeam = if ($ProjectReports) { ($ProjectReports | Where-Object { $_.ContributorsCount -ge 4 }).Count } else { 0 }
+    $singleContributor = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.ContributorsCount -eq 1 }).Count } else { 0 }
+    $smallTeam = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.ContributorsCount -ge 2 -and $_.ContributorsCount -le 3 }).Count } else { 0 }
+    $largeTeam = if ($ProjectReports) { @($ProjectReports | Where-Object { $_.ContributorsCount -ge 4 }).Count } else { 0 }
 
     # Pre-generate HTML table content to avoid template object property access issues
     $costAnalysisTableRows = ""
@@ -230,6 +230,16 @@ function New-ConsolidatedDashboardFromTemplate {
 
     $adoptionProjectsCount = $highAdoption + $mediumAdoption
     $adoptionRatioString = if ($totalProjects -gt 0) { "$adoptionProjectsCount/$totalProjects" } else { "0/$totalProjects" }
+
+    $collaborationChartHasData = $false
+    if ($CollaborationReports -and $CollaborationReports.Count -gt 0) {
+        $collaborationChartHasData = $true
+    }
+
+    $barriersChartHasData = $false
+    if ($AdoptionBarrierReports -and $AdoptionBarrierReports.Count -gt 0) {
+        $barriersChartHasData = $true
+    }
 
     # Prepare all parameters for template expansion
     $templateParameters = @{
@@ -312,30 +322,41 @@ function New-ConsolidatedDashboardFromTemplate {
             [math]::Round(($DevOpsMaturityReports | Measure-Object -Property CollaborationScore -Average).Average, 1) 
         } else { 0 }
         criticalBarriers = if ($AdoptionBarrierReports) { 
-            $criticalCount = ($AdoptionBarrierReports | Where-Object { $_.BarrierSeverity -ge 7 }).Count
+            $criticalCount = @($AdoptionBarrierReports | Where-Object { $_.BarrierSeverity -ge 7 }).Count
             Write-Log -Message "AdoptionBarrierReports: Count=$($AdoptionBarrierReports.Count), CriticalBarriers=$criticalCount" -Level "Debug" -Component "ChartData"
             $criticalCount
         } else { 
             Write-Log -Message "AdoptionBarrierReports: Empty or null" -Level "Debug" -Component "ChartData"
             0 
         }
+        collaborationChartHasData = $collaborationChartHasData.ToString().ToLower()
+        barriersChartHasData = $barriersChartHasData.ToString().ToLower()
         excellentAdoption = if ($FeatureAdoptionReports) { 
-            ($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Excellent" }).Count 
+            @($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Excellent" }).Count 
         } else { 0 }
         goodAdoption = if ($FeatureAdoptionReports) { 
-            ($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Good" }).Count 
+            @($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Good" }).Count 
         } else { 0 }
         needsImprovementAdoption = if ($FeatureAdoptionReports) { 
-            ($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Fair" }).Count + 
-            ($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Basic" }).Count 
+            @($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Fair" }).Count + 
+            @($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Basic" }).Count 
         } else { 0 }
         poorAdoption = if ($FeatureAdoptionReports) { 
-            ($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Minimal" }).Count 
+            @($FeatureAdoptionReports | Where-Object { $_.AdoptionLevel -eq "Minimal" }).Count 
         } else { 0 }
     }
     
-    # Get the template path (assuming it's in the same directory as the script)
-    $templatePath = Join-Path $PSScriptRoot "gitlab-report-template.html"
+    # Resolve the template path, preferring the repository root copy if present
+    $moduleParent = Split-Path -Path $PSScriptRoot -Parent
+    $templateCandidates = @()
+    if ($moduleParent) {
+        $templateCandidates += Join-Path $moduleParent "gitlab-report-template.html"
+    }
+    $templateCandidates += Join-Path $PSScriptRoot "gitlab-report-template.html"
+    $templatePath = $templateCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $templatePath) {
+        $templatePath = $templateCandidates[0]
+    }
     
     # Expand the template
     return Expand-Template -TemplatePath $templatePath -Parameters $templateParameters

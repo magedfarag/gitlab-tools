@@ -123,11 +123,11 @@ function Get-GitLabProjectReports {
 
             $pipelines = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/pipelines?per_page=100" -AllPages))
             $pipelinesTotal = if ($pipelines) { $pipelines.Count } else { 0 }
-            $pipelinesSuccess = if ($pipelines) { ($pipelines | Where-Object { $_.status -eq 'success' }).Count } else { 0 }
-            $pipelinesFailed = if ($pipelines) { ($pipelines | Where-Object { $_.status -eq 'failed' }).Count } else { 0 }
+            $pipelinesSuccess = if ($pipelines) { @($pipelines | Where-Object { $_.status -eq 'success' }).Count } else { 0 }
+            $pipelinesFailed = if ($pipelines) { @($pipelines | Where-Object { $_.status -eq 'failed' }).Count } else { 0 }
             $pipelineSuccessRate = if ($pipelinesTotal -gt 0) { [math]::Round($pipelinesSuccess / $pipelinesTotal, 3) } else { 0 }
 
-            $lastCommit = Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/repository/commits?per_page=1"
+            $lastCommit = @(ConvertTo-GitLabArray (Invoke-GitLabApiRequest -Client $ApiClient -Endpoint "projects/$($project.id)/repository/commits?per_page=1"))
             $lastCommitDate = if ($lastCommit -and $lastCommit.Count -gt 0) { $lastCommit[0].committed_date } else { $project.last_activity_at }
             $lastCommitAuthor = if ($lastCommit -and $lastCommit.Count -gt 0) { $lastCommit[0].author_name } else { "Unknown" }
 
