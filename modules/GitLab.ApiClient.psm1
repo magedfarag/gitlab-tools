@@ -181,16 +181,88 @@ function New-GitLabApiClient {
             }
             catch {
                 $statusCode = 0
-                if ($_.Exception -and $_.Exception.Response) {
-                    $statusCode = $_.Exception.Response.StatusCode.value__
+                $candidateValues = @()
+                $exception = $_.Exception
+                $probe = $exception
+
+                while ($probe) {
+                    if ($probe.PSObject.Properties['Response'] -and $probe.Response) {
+                        $response = $probe.Response
+                        if ($response.PSObject.Properties['StatusCode']) {
+                            $candidateValues += $response.StatusCode
+                        } elseif ($response -is [System.Net.HttpWebResponse] -or $response -is [System.Net.Http.HttpResponseMessage]) {
+                            $candidateValues += $response.StatusCode
+                        }
+                    }
+
+                    if ($probe.PSObject.Properties['StatusCode']) {
+                        $candidateValues += $probe.StatusCode
+                    }
+
+                    if ($probe.PSObject.Properties['ErrorRecord'] -and $probe.ErrorRecord -and $probe.ErrorRecord.Exception) {
+                        $probe = $probe.ErrorRecord.Exception
+                        continue
+                    }
+
+                    if ($probe.PSObject.Properties['InnerException'] -and $probe.InnerException) {
+                        $probe = $probe.InnerException
+                        continue
+                    }
+
+                    break
+                }
+
+                foreach ($candidate in $candidateValues) {
+                    try {
+                        if ($candidate -is [int]) {
+                            $statusCode = $candidate
+                            break
+                        }
+                        if ($candidate -is [System.Net.HttpStatusCode]) {
+                            $statusCode = [int]$candidate
+                            break
+                        }
+                        if ($candidate -and $candidate.PSObject.Properties['value__']) {
+                            $statusCode = [int]$candidate.value__
+                            break
+                        }
+                        if ($candidate -and $candidate.PSObject.Properties['HasValue'] -and $candidate.HasValue -and $candidate.PSObject.Properties['Value']) {
+                            $statusCode = [int]$candidate.Value
+                            break
+                        }
+                        if ($candidate -and $candidate.PSObject.Properties['StatusCode']) {
+                            $innerCandidate = $candidate.StatusCode
+                            if ($innerCandidate -is [int]) {
+                                $statusCode = $innerCandidate
+                                break
+                            }
+                            if ($innerCandidate -is [System.Net.HttpStatusCode]) {
+                                $statusCode = [int]$innerCandidate
+                                break
+                            }
+                            if ($innerCandidate -and $innerCandidate.PSObject.Properties['value__']) {
+                                $statusCode = [int]$innerCandidate.value__
+                                break
+                            }
+                            if ($innerCandidate -and $innerCandidate.PSObject.Properties['HasValue'] -and $innerCandidate.HasValue -and $innerCandidate.PSObject.Properties['Value']) {
+                                $statusCode = [int]$innerCandidate.Value
+                                break
+                            }
+                        }
+                    } catch {
+                        continue
+                    }
+                }
+
+                if ($statusCode -ne 0) {
                     $retry++
                     if ($statusCode -eq 429) {
                         $retry = [math]::Min($retry, $client.MaxRetries)
-                        $delay = [math]::Min($client.MaxDelayMs, $client.InitialDelayMs * [math]::Pow(2, $retry - 1))
+                        $delay = [math]::Min($client.MaxDelayMs, $client.InitialDelayMs * [math]::Pow(2, [math]::Max($retry, 1) - 1))
                         Start-Sleep -Milliseconds $delay
                         continue
                     } elseif ($statusCode -ge 500 -and $retry -le $client.MaxRetries) {
-                        $delay = [math]::Min($client.MaxDelayMs, $client.InitialDelayMs * [math]::Pow(2, $retry - 1))
+                        $delay = [math]::Min($client.MaxDelayMs, $client.InitialDelayMs * [math]::Pow(2, [math]::Max($retry, 1) - 1))
                         Start-Sleep -Milliseconds $delay
                         continue
                     }
@@ -198,6 +270,7 @@ function New-GitLabApiClient {
 
                 throw [GitLabApiError]::new("GitLab API call failed for $Endpoint", $statusCode, $Endpoint, $_.Exception)
             }
+
         } while ($continuePaging)
 
         return $results

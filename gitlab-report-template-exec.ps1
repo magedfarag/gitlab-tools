@@ -73,7 +73,8 @@ function Update-OverallProgress {
         [int]$Step,
         [int]$TotalSteps
     )
-    Write-LogProgress -Activity 'GitLab Comprehensive Dashboard' -Status $Status -PercentComplete $PercentComplete -Step $Step -TotalSteps $TotalSteps
+    $activityLabel = if ([string]::IsNullOrWhiteSpace($Activity)) { 'GitLab Comprehensive Dashboard' } else { $Activity }
+    Write-LogProgress -Activity $activityLabel -Status $Status -PercentComplete $PercentComplete -Step $Step -TotalSteps $TotalSteps -Scope 'Checkpoint'
 }
 
 $checkpointStageLabels = [ordered]@{
@@ -375,6 +376,7 @@ else {
 }
 
 Publish-CheckpointSummary
+Complete-GitLabProgress
 
 
 
