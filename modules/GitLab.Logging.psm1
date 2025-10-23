@@ -123,7 +123,7 @@ function Write-Log {
     }
 
     $activityLabel = if ([string]::IsNullOrWhiteSpace($Activity)) { 'General' } else { $Activity }
-    $header = "[Section: $sectionLabel] [Activity: $activityLabel]"
+    $header = "[$sectionLabel] [$activityLabel]"
     $logEntry = "[$timestamp] [$Level] $header $Message"
 
     $levelPriority = $script:LogLevels[$Level]

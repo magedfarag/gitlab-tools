@@ -5,6 +5,10 @@ if (-not (Get-Variable -Name GitLabPermissionWarnings -Scope Script -ErrorAction
     $script:GitLabPermissionWarnings = @{}
 }
 
+if (-not (Get-Variable -Name GitLabApiFailureWarnings -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:GitLabApiFailureWarnings = @{}
+}
+
 function Get-SafePropertyValue {
     param(
         $Object,
@@ -158,7 +162,29 @@ function Invoke-GitLabAPI {
             }
         }
 
-        Write-Warning "API call failed for $Endpoint : $($exception.Message)"
+        $statusText = if ($statusCode) { "status $statusCode" } else { "unknown status" }
+        $sanitizedMessage = if ($exception.Message) { ($exception.Message -replace '\s+', ' ').Trim() } else { "No additional details." }
+        $warningMessage = "API call failed for $Endpoint ($statusText): $sanitizedMessage"
+        $warningKey = "$Method|$Endpoint|$statusCode"
+        $previousCount = if ($script:GitLabApiFailureWarnings.ContainsKey($warningKey)) { $script:GitLabApiFailureWarnings[$warningKey] } else { 0 }
+        $script:GitLabApiFailureWarnings[$warningKey] = $previousCount + 1
+        $occurrence = $script:GitLabApiFailureWarnings[$warningKey]
+
+        $shouldLog = $occurrence -le 3
+        if ($shouldLog) {
+            if ($occurrence -gt 1) {
+                $warningMessage = "$warningMessage (repeat #$occurrence)"
+            }
+
+            if (Get-Command -Name Write-Log -ErrorAction SilentlyContinue) {
+                Write-Log -Message $warningMessage -Level "Warning" -Activity "GitLabAPI" -Section "API"
+            } else {
+                Write-Warning $warningMessage
+            }
+        } else {
+            Write-Verbose "Suppressed API warning for $Endpoint after $occurrence occurrences."
+        }
+
         return $null
     }
 }
@@ -445,7 +471,7 @@ function Get-RiskLevel {
     else { return "Low" }
 }
 
-# COMPREHENSIVE REPORT GENERATION FUNCTIONS
+#  REPORT GENERATION FUNCTIONS
 function Generate-CodeQualityReport {
     param([array]$ProjectReports)
     
@@ -957,8 +983,23 @@ function Generate-TeamActivityReport {
 function Generate-TechnologyStackReport {
     param([array]$ProjectReports)
     
-    Write-Host "???  Generating Technology Stack Reports..." -ForegroundColor Cyan
+    if (Get-Command -Name Write-Log -ErrorAction SilentlyContinue) {
+        Write-Log -Message "Generating technology stack reports..." -Level "Info" -Activity "TechnologyStack" -Section "Analytics"
+    } else {
+        Write-Verbose "Generating technology stack reports..."
+    }
     
+    $projects = @(ConvertTo-GitLabArray $ProjectReports)
+    $totalProjects = $projects.Count
+    if ($totalProjects -eq 0) {
+        if (Get-Command -Name Write-Log -ErrorAction SilentlyContinue) {
+            Write-Log -Message "No project data available for technology stack analysis." -Level "Warning" -Activity "TechnologyStack" -Section "Analytics"
+        } else {
+            Write-Warning "No project data available for technology stack analysis."
+        }
+        return @()
+    }
+
     $techReports = @()
     $counter = 0
 
@@ -1021,9 +1062,12 @@ function Generate-TechnologyStackReport {
         "Splunk"     = @('\bsplunk\b')
     }
 
-    foreach ($project in $ProjectReports) {
+    foreach ($project in $projects) {
         $counter++
-        Write-Progress -Id 5 -Activity "Technology Stack Analysis" -Status "Analyzing $($project.ProjectName) ($counter/$($ProjectReports.Count))" -PercentComplete (($counter / $ProjectReports.Count) * 100)
+        if ($totalProjects -gt 0) {
+            $percent = [math]::Min(100, ($counter / $totalProjects) * 100)
+            Write-Progress -Id 5 -Activity "Technology Stack Analysis" -Status "Analyzing $($project.ProjectName) ($counter/$totalProjects)" -PercentComplete $percent
+        }
         
         try {
             $projectDetails = Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)?statistics=true&with_custom_attributes=true&with_topics=true"
@@ -1267,8 +1311,19 @@ function Generate-TechnologyStackReport {
 
             $techReports += $techReport
         } catch {
-            Write-Warning "Failed to analyze technology stack for project $($project.ProjectName): $($_.Exception.Message)"
-            
+            $errorMessage = if ($_.Exception -and $_.Exception.Message) { ($_.Exception.Message -replace '\s+', ' ').Trim() } else { "Unknown error." }
+            $projectLabel = if ($project.PSObject.Properties['ProjectPath'] -and $project.ProjectPath) {
+                "$($project.ProjectName) [$($project.ProjectPath)]"
+            } else {
+                $project.ProjectName
+            }
+            $failureMessage = "Failed to analyze technology stack for project ${projectLabel}: $errorMessage"
+            if (Get-Command -Name Write-Log -ErrorAction SilentlyContinue) {
+                Write-Log -Message $failureMessage -Level "Warning" -Activity "TechnologyStack" -Section "Analytics"
+            } else {
+                Write-Warning $failureMessage
+            }
+
             $techReports += [TechnologyStack]@{
                 ProjectName = $project.ProjectName
                 ProjectId = $project.ProjectId
@@ -1286,7 +1341,11 @@ function Generate-TechnologyStackReport {
     }
     
     Write-Progress -Id 5 -Completed
-    Write-Host "   ✓ Analyzed technology stacks for $($techReports.Count) projects" -ForegroundColor Green
+    if (Get-Command -Name Write-Log -ErrorAction SilentlyContinue) {
+        Write-Log -Message "Analyzed technology stacks for $($techReports.Count) projects." -Level "Success" -Activity "TechnologyStack" -Section "Analytics"
+    } else {
+        Write-Host ("Analyzed technology stacks for {0} projects." -f $techReports.Count)
+    }
     
     return $techReports
 }

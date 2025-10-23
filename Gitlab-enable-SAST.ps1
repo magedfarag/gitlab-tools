@@ -9,7 +9,7 @@
  
 Actions this script is doing:
     1. Create a dedicated Security Policy Project in the specified GitLab group (if it doesn't already exist).
-    2. Commit a comprehensive Scan Execution Policy YAML file to the project repository, defining advanced SAST and Dependency Scanning rules for production and development branches.
+    2. Commit a  Scan Execution Policy YAML file to the project repository, defining advanced SAST and Dependency Scanning rules for production and development branches.
     3. Link the Security Policy Project to the target GitLab group to enforce the defined security policies across all projects within the group.
     4. Verify that the policy file is correctly created and that the group is properly linked to the security policy project.
 
@@ -167,7 +167,7 @@ $policyYamlContent = @"
 ---
 scan_execution_policy:
 - name: "Production Branch Security Policy"
-  description: "Comprehensive security scanning for production branches with strict thresholds"
+  description: " security scanning for production branches with strict thresholds"
   enabled: true
   rules:
   - type: pipeline
@@ -573,7 +573,7 @@ if ($policyFileFound -and $policyContentValid -and $policyProject) {
 # Overall status
 if ($verificationPassed -and $isAlreadyLinked) {
     Write-Host "`n" + "🎉 SECURITY POLICIES ARE FULLY ACTIVE! 🎉" -ForegroundColor Green
-    Write-Host "`nThe comprehensive security scanning policy is now active and will:" -ForegroundColor Yellow
+    Write-Host "`nThe  security scanning policy is now active and will:" -ForegroundColor Yellow
     Write-Host "  • Production branches: Strict scanning with historic secret detection" -ForegroundColor White
     Write-Host "  • Development branches: Optimized scanning for faster feedback" -ForegroundColor White
     Write-Host "  • All branches: SAST, Secret Detection, Dependency Scanning" -ForegroundColor White

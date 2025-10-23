@@ -362,7 +362,7 @@ function New-ConsolidatedDashboardFromTemplate {
     return Expand-Template -TemplatePath $templatePath -Parameters $templateParameters
 }
 
-# Enhanced API function with rate limiting, exponential backoff, and comprehensive error handling
+# Enhanced API function with rate limiting, exponential backoff, and  error handling
 function Invoke-GitLabAPI {
     param(
         [string]$Endpoint,

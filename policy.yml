@@ -4,7 +4,7 @@
 
 tybe: scan_execution_policy
 name: Production Branch Security Policy
-description: "Comprehensive security scanning for production branches with strict thresholds"
+description: " security scanning for production branches with strict thresholds"
 enabled: true
 rules:
     - type: pipeline
@@ -28,7 +28,7 @@ actions:
         SAST_BRAKEMAN_LEVEL: "1"  # Strictest level for production
         SAST_FLAWFINDER_LEVEL: "1"
         SAST_GITLEAKS_ENTROPY_LEVEL: "3.0"
-        SAST_GOSEC_LEVEL: "0"  # Most comprehensive
+        SAST_GOSEC_LEVEL: "0"  # Most 
         SAST_KUBESEC_HELM_CHARTS_PATH: ""
         SAST_NODEJS_SCAN_LEVEL: "1"
         SAST_PHPCS_SECURITY_AUDIT_LEVEL: "1"

@@ -58,7 +58,7 @@ $global:ReportOutputPath = $reportOutputPath
 
 $logFilePath = if ($EnableFileLogging) { Join-Path $reportOutputPath "GitLab-Dashboard-$reportDate.log" } else { $null }
 Initialize-GitLabLogging -LogLevel $LogLevel -Non-Interactive:$NonInteractive -EnableFileLogging:$EnableFileLogging -LogFilePath $logFilePath
-Write-Log -Message 'GitLab Comprehensive Management Dashboard - Starting' -Level 'Info' -Component 'Init'
+Write-Log -Message 'GitLab Management Dashboard - Starting' -Level 'Info' -Component 'Init'
 Write-Log -Message "Log Level: $LogLevel" -Level 'Info' -Component 'Init'
 Write-Log -Message "Non-Interactive Mode: $($NonInteractive.IsPresent)" -Level 'Info' -Component 'Init'
 Write-Log -Message "Output Root: $OutputPath" -Level 'Info' -Component 'Init'
@@ -73,7 +73,7 @@ function Update-OverallProgress {
         [int]$Step,
         [int]$TotalSteps
     )
-    $activityLabel = if ([string]::IsNullOrWhiteSpace($Activity)) { 'GitLab Comprehensive Dashboard' } else { $Activity }
+    $activityLabel = if ([string]::IsNullOrWhiteSpace($Activity)) { 'GitLab  Dashboard' } else { $Activity }
     Write-LogProgress -Activity $activityLabel -Status $Status -PercentComplete $PercentComplete -Step $Step -TotalSteps $TotalSteps -Scope 'Checkpoint'
 }
 
@@ -176,7 +176,7 @@ function Test-GitLabConnection {
 
 $script:ApiClient = New-GitLabApiClient -BaseUri ([uri]$GitLabURL) -AccessToken $AccessToken -DefaultPerPage 100 -MaxPages 100 -MaxRetries 3 -InitialDelayMs 250 -MaxDelayMs 16000 -MinDelayBetweenCallsMs 200
 
-Write-LogSection -Title 'GitLab Comprehensive Management Dashboard - Template Edition' -Symbol '='
+Write-LogSection -Title 'GitLab  Management Dashboard' -Symbol '='
 Write-Log -Message 'Starting GitLab dashboard generation' -Level 'Info' -Component 'Main'
 Write-Log -Message "GitLab URL: $GitLabURL" -Level 'Debug' -Component 'Main'
 Write-Log -Message "Include Security Data: $IncludeSecurityData" -Level 'Debug' -Component 'Main'
@@ -344,7 +344,7 @@ try {
     Write-Log -Message "Failed to export enhanced CSV reports: $($_.Exception.Message)" -Level 'Error' -Component 'CSV'
 }
 
-Write-Log -Message 'Generating comprehensive dashboard from template...' -Level 'Info' -Component 'Dashboard'
+Write-Log -Message 'Generating  dashboard from template...' -Level 'Info' -Component 'Dashboard'
 $executionTime = (Get-Date) - $scriptStartTime
 $templatePath = Join-Path $PSScriptRoot 'gitlab-report-template.html'
 $dashboardHTML = New-ConsolidatedDashboardFromTemplate `

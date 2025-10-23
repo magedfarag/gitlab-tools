@@ -440,7 +440,7 @@ function ConvertTo-Array {
 
 # Initialize logging
 if ($global:FileLoggingEnabled) {
-    Write-Log -Message "GitLab Comprehensive Management Dashboard - Starting" -Level "Info" -Component "Init"
+    Write-Log -Message "GitLab  Management Dashboard - Starting" -Level "Info" -Component "Init"
     Write-Log -Message "Log Level: $LogLevel" -Level "Info" -Component "Init"
     Write-Log -Message "Non-Interactive Mode: $($global:NonInteractiveMode)" -Level "Info" -Component "Init"
     Write-Log -Message "Output Path: $OutputPath" -Level "Info" -Component "Init"
@@ -457,7 +457,7 @@ Initialize-CheckpointContext `
     -ForceRestart:$ForceRestart
 
 
-# COMPREHENSIVE CLASS DEFINITIONS
+#  CLASS DEFINITIONS
 class ProjectReport {
     [string]$ProjectName
     [string]$ProjectPath
@@ -682,7 +682,7 @@ function Update-OverallProgress {
         [int]$TotalSteps
     )
     
-    Write-LogProgress -Activity "GitLab Comprehensive Dashboard" -Status $Status -PercentComplete $PercentComplete -Step $Step -TotalSteps $TotalSteps
+    Write-LogProgress -Activity "GitLab  Dashboard" -Status $Status -PercentComplete $PercentComplete -Step $Step -TotalSteps $TotalSteps
 }
 
 function Get-CodeQualityArtifactIssues {
@@ -1056,7 +1056,7 @@ function Get-RiskLevel {
     else { return "Low" }
 }
 
-# COMPREHENSIVE REPORT GENERATION FUNCTIONS
+#  REPORT GENERATION FUNCTIONS
 function Generate-CodeQualityReport {
     param([array]$ProjectReports)
     
@@ -2964,7 +2964,7 @@ function New-ConsolidatedDashboardFromTemplate {
     return Expand-Template -TemplatePath $templatePath -Parameters $templateParameters
 }
 
-# Enhanced API function with rate limiting, exponential backoff, and comprehensive error handling
+# Enhanced API function with rate limiting, exponential backoff, and  error handling
 function Invoke-GitLabAPI {
     param(
         [string]$Endpoint,
@@ -3402,7 +3402,7 @@ function Export-CSVReports {
 # NOTE: Removed sample data helper - this template requires a live GitLab connection and valid access token.
 
 # MAIN SCRIPT EXECUTION
-Write-LogSection -Title "GitLab Comprehensive Management Dashboard - Template Edition" -Symbol "="
+Write-LogSection -Title "GitLab  Management Dashboard" -Symbol "="
 
 Write-Log -Message "Starting GitLab dashboard generation" -Level "Info" -Component "Main"
 Write-Log -Message "GitLab URL: $GitLabURL" -Level "Debug" -Component "Main"
@@ -3427,7 +3427,7 @@ if ($projects -and $projects.Count -gt 0) {
     exit 1
 }
 
-# Process projects with comprehensive data collection
+# Process projects with  data collection
 $projectReports = @()
 if ($projects -and $projects.Count -gt 0) {
     $projectCounter = 0
@@ -3480,7 +3480,7 @@ if ($projects -and $projects.Count -gt 0) {
             $lastActivityDate = if ($lastCommitDate) { [datetime]$lastCommitDate } else { [datetime]$project.last_activity_at }
             $daysSinceLastActivity = ((Get-Date) - $lastActivityDate).Days
             
-            # Create comprehensive project report
+            # Create  project report
             $projectReport = [ProjectReport]@{
                 ProjectName = $project.name
                 ProjectPath = $project.path_with_namespace
@@ -3559,8 +3559,8 @@ if ($projects -and $projects.Count -gt 0) {
     Write-Host "   ⚠ No project data available" -ForegroundColor Yellow
 }
 
-# Generate comprehensive reports
-Write-Log -Message "Starting comprehensive report generation" -Level "Info" -Component "ReportGeneration"
+# Generate  reports
+Write-Log -Message "Starting  report generation" -Level "Info" -Component "ReportGeneration"
 
 $securityScanResults = @()
 $codeQualityReports = @()
@@ -3746,7 +3746,7 @@ else {
 }
 
 # Generate the final dashboard using the external template
-Write-Log -Message "Generating comprehensive dashboard from template..." -Level "Info" -Component "DashboardGeneration"
+Write-Log -Message "Generating  dashboard from template..." -Level "Info" -Component "DashboardGeneration"
 $executionTime = (Get-Date) - $scriptStartTime
 
 $dashboardHTML = New-ConsolidatedDashboardFromTemplate `
