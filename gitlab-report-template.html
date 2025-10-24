@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitLab  Management Dashboard - $ReportDate</title>
+    <title>Management Dashboard - $ReportDate</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --primary: #6e5494;
-            --secondary: #fc6d26;
-            --success: #28a745;
-            --warning: #ffc107;
-            --danger: #dc3545;
-            --info: #17a2b8;
-            --light: #f8f9fa;
-            --dark: #343a40;
+            --primary: #1f2937;
+            --secondary: #2563eb;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --info: #0ea5e9;
+            --light: #f1f5f9;
+            --dark: #0f172a;
+            --muted: #475569;
         }
         
         * {
@@ -24,26 +25,32 @@
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--light);
             min-height: 100vh;
-            padding: 20px;
+            padding: 32px;
+            color: var(--muted);
+        }
+
+        body.no-scroll {
+            overflow: hidden;
         }
         
         .dashboard-container {
-            max-width: 1800px;
+            max-width: 1600px;
             margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            background: #ffffff;
+            border-radius: 18px;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+            border: 1px solid rgba(15, 23, 42, 0.06);
             overflow: hidden;
         }
         
         .report-header {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            color: white;
-            padding: 25px 30px;
-            border-bottom: 5px solid rgba(255,255,255,0.2);
+            background: linear-gradient(135deg, #111827 0%, #1f2937 60%, #2563eb 100%);
+            color: #f8fafc;
+            padding: 36px 48px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.35);
         }
         
         .report-title {
@@ -54,66 +61,295 @@
         }
         
         .report-title h1 {
-            font-size: 2.2em;
+            font-size: 2.6em;
             margin: 0;
-            font-weight: 300;
+            font-weight: 500;
+            letter-spacing: -0.5px;
         }
-        
+
         .report-date {
-            font-size: 1.3em;
-            opacity: 0.9;
-            background: rgba(255,255,255,0.2);
-            padding: 8px 15px;
-            border-radius: 20px;
+            font-size: 1.1em;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 18px;
+            border-radius: 999px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
         }
-        
+
         .report-meta {
             display: flex;
             justify-content: space-between;
-            font-size: 1em;
+            font-size: 0.95em;
             opacity: 0.9;
+            letter-spacing: 0.3px;
+        }
+
+        .report-meta div {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .report-meta strong {
+            color: #e2e8f0;
+            font-weight: 600;
         }
         
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 24px;
+            padding: 32px 48px 12px 48px;
+            background: linear-gradient(180deg, rgba(241, 245, 249, 0.85) 0%, rgba(248, 250, 252, 0.3) 100%);
+        }
+
+        .executive-summary {
+            padding: 0 48px 32px 48px;
+            background: #ffffff;
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+
+        .summary-header h2 {
+            font-size: 1.6em;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .summary-header p {
+            color: var(--muted);
+            font-size: 0.95em;
+            max-width: 520px;
+            text-align: right;
+        }
+
+        .summary-columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             gap: 20px;
-            padding: 30px;
-            background: var(--light);
         }
-        
-        .metric-card {
-            background: white;
-            padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-            text-align: center;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border-left: 5px solid var(--primary);
+
+        .summary-card {
+            background: #f8fafc;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .summary-card h3 {
+            font-size: 1.1em;
+            color: var(--primary);
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .summary-card ul {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .summary-card li {
+            margin-bottom: 6px;
+        }
+
+        .summary-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--secondary);
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.75em;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .health-table-note {
+            font-size: 0.9em;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .health-row {
+            cursor: pointer;
+        }
+
+        .health-row:hover {
+            background: rgba(37, 99, 235, 0.08);
+        }
+
+        .health-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.55);
+            z-index: 20000;
+            padding: 24px;
+        }
+
+        .health-overlay.active {
+            display: flex;
+        }
+
+        .health-overlay-panel {
+            background: #ffffff;
+            border-radius: 18px;
+            width: min(720px, 100%);
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 32px 60px rgba(15, 23, 42, 0.25);
+            border: 1px solid rgba(15, 23, 42, 0.1);
+            padding: 32px;
             position: relative;
-            cursor: help;
         }
-        
+
+        .health-overlay-close {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            border: none;
+            background: transparent;
+            font-size: 1.6em;
+            color: var(--muted);
+            cursor: pointer;
+        }
+
+        .health-overlay-close:hover {
+            color: var(--danger);
+        }
+
+        .health-overlay-header h3 {
+            margin: 0 0 6px 0;
+            color: var(--primary);
+            font-size: 1.9em;
+        }
+
+        .health-overlay-subtitle {
+            color: var(--muted);
+            font-size: 0.95em;
+            margin-bottom: 20px;
+        }
+
+        .health-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .health-metric {
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            padding: 16px;
+        }
+
+        .health-metric span.value {
+            display: block;
+            font-size: 1.4em;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .health-metric span.label {
+            display: block;
+            font-size: 0.85em;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .health-overlay-section {
+            margin-bottom: 24px;
+        }
+
+        .health-overlay-section h4 {
+            margin-bottom: 10px;
+            color: var(--primary);
+            font-size: 1.1em;
+        }
+
+        .health-suggestion-list {
+            padding-left: 18px;
+            color: var(--muted);
+        }
+
+        .health-suggestion-list li {
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .health-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .health-link-btn {
+            background: var(--secondary);
+            color: #ffffff;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 999px;
+            font-weight: 600;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .health-link-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(37, 99, 235, 0.25);
+        }
+
+        .health-link-btn.secondary {
+            background: var(--primary);
+        }
+
+        .metric-card {
+            background: #ffffff;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            text-align: left;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+            position: relative;
+        }
+
         .metric-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transform: translateY(-6px);
+            box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
         }
-        
+
         .metric-card:hover::after {
             content: attr(data-tooltip);
             position: absolute;
             bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 0.8em;
-            white-space: pre-line;
-            z-index: 1000;
-            width: 300px;
+            left: 0;
+            transform: translateY(-12px);
+            background: rgba(15, 23, 42, 0.95);
+            color: #f8fafc;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 0.85em;
+            line-height: 1.4;
+            z-index: 14000;
+            width: 320px;
             text-align: left;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.2);
+            pointer-events: none;
         }
 
         /* Interactive Help System Styles */
@@ -158,7 +394,7 @@
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.5);
-            z-index: 10000;
+            z-index: 22000;
             animation: fadeIn 0.3s ease;
         }
 
@@ -319,7 +555,7 @@
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.3s ease;
-            z-index: 1001;
+            z-index: 15000;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
 
@@ -335,7 +571,7 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            z-index: 999;
+            z-index: 13000;
         }
 
         .quick-action-btn {
@@ -353,151 +589,189 @@
             transition: transform 0.3s ease;
         }
 
+        .quick-action-btn span {
+            font-size: 0.75em;
+            font-weight: 600;
+            letter-spacing: 0.6px;
+        }
+
         .quick-action-btn:hover {
             transform: scale(1.1);
         }
 
         .quick-action-btn.readme {
-            background: linear-gradient(135deg, #28a745, #20c997);
-        }
-
-        .quick-action-btn.tips {
-            background: linear-gradient(135deg, #ffc107, #fd7e14);
-        }
-
-        .quick-action-btn.export {
-            background: linear-gradient(135deg, #17a2b8, #6f42c1);
+            background: #2563eb;
         }
         
+        .quick-action-btn.tips {
+            background: #d97706;
+        }
+        
+        .quick-action-btn.export {
+            background: #0ea5e9;
+        }
+        
+        .metric-title {
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 1.8px;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
         .metric-value {
-            font-size: 2.2em;
-            font-weight: bold;
+            font-size: 2.4em;
+            font-weight: 600;
             color: var(--primary);
-            margin-bottom: 5px;
+            margin-bottom: 8px;
         }
         
         .metric-label {
-            font-size: 0.9em;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            font-size: 1em;
+            color: var(--muted);
+            line-height: 1.4;
         }
         
         .metric-trend {
-            font-size: 0.8em;
-            margin-top: 5px;
+            font-size: 0.9em;
+            margin-top: 12px;
+            font-weight: 500;
         }
         
         .trend-up { color: var(--success); }
         .trend-down { color: var(--danger); }
         
         .section {
-            padding: 30px;
-            border-bottom: 1px solid #eee;
+            padding: 40px 48px;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+            background: #ffffff;
         }
         
         .section-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid var(--light);
+            align-items: flex-end;
+            margin-bottom: 24px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
         }
         
         .section-title {
-            font-size: 1.8em;
+            font-size: 1.9em;
             color: var(--primary);
-            font-weight: 300;
+            font-weight: 500;
         }
         
         .section-subtitle {
-            color: #666;
-            font-size: 1em;
+            color: var(--muted);
+            font-size: 0.95em;
         }
         
         .charts-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 25px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
         }
         
         .chart-card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            background: #ffffff;
+            padding: 24px 24px 32px 24px;
+            border-radius: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
         }
 
         .chart-empty {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 220px;
-            border: 2px dashed var(--light);
-            border-radius: 10px;
-            color: #777;
+            min-height: 240px;
+            border: 2px dashed rgba(148, 163, 184, 0.35);
+            border-radius: 16px;
+            color: var(--muted);
             font-style: italic;
-            background: #f8f9fa;
+            background: rgba(248, 250, 252, 0.7);
         }
         
         .chart-title {
-            font-size: 1.2em;
-            margin-bottom: 15px;
-            color: var(--dark);
-            text-align: center;
+            font-size: 1.15em;
+            margin-bottom: 18px;
+            color: var(--primary);
+            text-align: left;
+            font-weight: 600;
+            letter-spacing: 0.3px;
         }
         
-        .data-table {
+                .data-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 20px 0;
-            background: white;
-            border-radius: 10px;
+            margin: 28px 0;
+            background: #ffffff;
+            border-radius: 14px;
             overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+            border: 1px solid rgba(148, 163, 184, 0.25);
         }
         
         .data-table th {
             background: var(--primary);
-            color: white;
-            padding: 15px;
+            color: #f8fafc;
+            padding: 16px 18px;
             text-align: left;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             position: relative;
             user-select: none;
+            letter-spacing: 0.4px;
         }
         
         .data-table th:hover {
-            background: #5a4477;
+            background: #111827;
         }
         
         .data-table th::after {
-            content: '↕';
+            content: '';
             position: absolute;
-            right: 10px;
-            opacity: 0.7;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 10px;
+            border-right: 1px solid rgba(248, 250, 252, 0.7);
+            border-left: 1px solid rgba(248, 250, 252, 0.3);
         }
         
+        .data-table th.sort-asc::after,
+        .data-table th.sort-desc::after {
+            border: none;
+            font-size: 0.75em;
+            color: rgba(248, 250, 252, 0.9);
+        }
+
         .data-table th.sort-asc::after {
-            content: '↑';
+            content: '^';
         }
         
         .data-table th.sort-desc::after {
-            content: '↓';
+            content: 'v';
         }
         
         .data-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #eee;
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+            color: var(--muted);
         }
         
         .data-table tr:hover {
-            background: #f8f9fa;
+            background: rgba(241, 245, 249, 0.6);
         }
-        
+
+        .data-table.health-table tbody tr {
+            transition: background 0.2s ease;
+        }
+
         .status-high { background-color: #d4edda; }
         .status-medium { background-color: #fff3cd; }
         .status-low { background-color: #f8d7da; }
@@ -520,11 +794,12 @@
         
         .tab-buttons {
             display: flex;
-            background: var(--light);
-            border-radius: 8px;
-            padding: 5px;
-            margin-bottom: 20px;
+            background: rgba(241, 245, 249, 0.8);
+            border-radius: 10px;
+            padding: 6px;
+            margin-bottom: 24px;
             flex-wrap: wrap;
+            border: 1px solid rgba(148, 163, 184, 0.25);
         }
         
         .tab-button {
@@ -538,11 +813,18 @@
             font-weight: 500;
             min-width: 120px;
             margin: 2px;
+            color: var(--muted);
         }
         
         .tab-button.active {
             background: var(--primary);
-            color: white;
+            color: #f8fafc;
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.15);
+        }
+
+        .tab-button:not(.active):hover {
+            background: rgba(37, 99, 235, 0.12);
+            color: var(--primary);
         }
         
         .tab-content {
@@ -561,23 +843,27 @@
         }
         
         .insight-card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            background: #ffffff;
+            padding: 22px;
+            border-radius: 14px;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.07);
+            border: 1px solid rgba(148, 163, 184, 0.2);
             border-left: 4px solid var(--info);
         }
         
         .insight-card.warning {
             border-left-color: var(--warning);
+            background: rgba(217, 119, 6, 0.08);
         }
         
         .insight-card.danger {
             border-left-color: var(--danger);
+            background: rgba(220, 38, 38, 0.08);
         }
         
         .insight-card.success {
             border-left-color: var(--success);
+            background: rgba(22, 163, 74, 0.08);
         }
         
         .insight-title {
@@ -654,22 +940,22 @@
         
         .insight-card.excellent {
             border-left-color: var(--success);
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            background: rgba(22, 163, 74, 0.08);
         }
         
         .insight-card.good {
             border-left-color: var(--info);
-            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+            background: rgba(14, 165, 233, 0.08);
         }
         
         .insight-card.warning {
             border-left-color: var(--warning);
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            background: rgba(217, 119, 6, 0.08);
         }
         
         .insight-card.danger {
             border-left-color: var(--danger);
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            background: rgba(220, 38, 38, 0.08);
         }
         
         .insight-number {
@@ -704,26 +990,27 @@
         .action-item {
             display: flex;
             align-items: center;
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
             border-left: 4px solid;
+            border: 1px solid rgba(148, 163, 184, 0.2);
         }
         
         .action-item.high-priority {
             border-left-color: var(--danger);
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+            background: rgba(220, 38, 38, 0.08);
         }
         
         .action-item.medium-priority {
             border-left-color: var(--warning);
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            background: rgba(217, 119, 6, 0.08);
         }
         
         .action-item.low-priority {
             border-left-color: var(--success);
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            background: rgba(22, 163, 74, 0.08);
         }
         
         .action-icon {
@@ -749,7 +1036,7 @@
         
         /* Enhanced Health Scoring Styles */
         .health-scoring-container {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            background: #f1f5f9;
             border-radius: 15px;
             padding: 30px;
             margin: 25px 0;
@@ -776,177 +1063,150 @@
             margin: 0;
         }
         
-        .scoring-breakdown {
-            display: flex;
-            flex-direction: column;
-            gap: 30px;
-        }
-        
-        .scoring-formula h5 {
-            color: var(--primary);
-            font-size: 1.4em;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .formula-container {
+        .scoring-pill-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
         }
-        
-        .formula-component {
+
+        .scoring-pill {
+            background: #ffffff;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 14px;
+            padding: 16px 18px;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
             display: flex;
-            align-items: flex-start;
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            border-left: 4px solid var(--primary);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            justify-content: space-between;
+            align-items: center;
+            cursor: help;
+            position: relative;
         }
-        
-        .formula-component:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+
+        .scoring-pill:focus,
+        .scoring-pill:hover {
+            outline: none;
+            box-shadow: 0 14px 28px rgba(37, 99, 235, 0.25);
+            border-color: rgba(37, 99, 235, 0.45);
         }
-        
-        .component-icon {
-            font-size: 2em;
-            margin-right: 15px;
-            width: 50px;
-            text-align: center;
-        }
-        
-        .component-details {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .component-name {
-            font-weight: 600;
-            font-size: 1.1em;
-            color: var(--dark);
-            margin-bottom: 5px;
-        }
-        
-        .component-points {
-            font-weight: 700;
-            color: var(--primary);
-            font-size: 1em;
-            margin-bottom: 10px;
-        }
-        
-        .component-criteria {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-        
-        .criteria-item {
+
+        .scoring-pill::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.95);
+            color: #f8fafc;
+            padding: 12px 14px;
+            border-radius: 10px;
             font-size: 0.85em;
-            color: #6c757d;
-            padding: 2px 8px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border-left: 3px solid #dee2e6;
+            line-height: 1.4;
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+            width: 280px;
+            max-width: 90vw;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 14000;
         }
-        
-        .adoption-levels h5 {
+
+        .scoring-pill:hover::after,
+        .scoring-pill:focus::after {
+            opacity: 1;
+        }
+
+        .scoring-pill .pill-title {
+            font-weight: 600;
             color: var(--primary);
-            font-size: 1.4em;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
-        
-        .levels-grid {
+
+        .scoring-pill .pill-score {
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        .scoring-note {
+            font-size: 0.9em;
+            color: var(--muted);
+            margin-bottom: 18px;
+        }
+
+        .adoption-pill-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
         }
-        
-        .level-card {
-            display: flex;
-            align-items: center;
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .level-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-        }
-        
-        .level-card.level-high {
-            border-left: 4px solid var(--success);
-        }
-        
-        .level-card.level-medium {
-            border-left: 4px solid var(--warning);
-        }
-        
-        .level-card.level-low {
-            border-left: 4px solid #fd7e14;
-        }
-        
-        .level-card.level-very-low {
-            border-left: 4px solid var(--danger);
-        }
-        
-        .level-icon {
-            font-size: 2em;
-            margin-right: 15px;
-            width: 50px;
-            text-align: center;
-        }
-        
-        .level-info {
-            flex: 1;
+
+        .adoption-pill {
+            background: #ffffff;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            padding: 18px;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
             display: flex;
             flex-direction: column;
+            gap: 8px;
+            cursor: help;
+            position: relative;
         }
-        
-        .level-name {
+
+        .adoption-pill:hover,
+        .adoption-pill:focus {
+            outline: none;
+            box-shadow: 0 16px 30px rgba(15, 23, 42, 0.2);
+            border-color: rgba(15, 23, 42, 0.35);
+        }
+
+        .adoption-pill::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.95);
+            color: #f8fafc;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 0.85em;
+            line-height: 1.4;
+            width: 260px;
+            max-width: 85vw;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 14000;
+        }
+
+        .adoption-pill:hover::after,
+        .adoption-pill:focus::after {
+            opacity: 1;
+        }
+
+        .adoption-pill .pill-heading {
             font-weight: 600;
-            font-size: 1.1em;
-            color: var(--dark);
-            margin-bottom: 3px;
+            font-size: 1.05em;
+            color: var(--primary);
         }
-        
-        .level-range {
+
+        .adoption-pill .pill-range {
             font-weight: 700;
-            font-size: 0.9em;
-            margin-bottom: 8px;
         }
-        
-        .level-card.level-high .level-range {
+
+        .adoption-pill.level-high .pill-range {
             color: var(--success);
         }
-        
-        .level-card.level-medium .level-range {
+
+        .adoption-pill.level-medium .pill-range {
             color: var(--warning);
         }
-        
-        .level-card.level-low .level-range {
+
+        .adoption-pill.level-low .pill-range {
             color: #fd7e14;
         }
-        
-        .level-card.level-very-low .level-range {
+
+        .adoption-pill.level-very-low .pill-range {
             color: var(--danger);
-        }
-        
-        .level-desc {
-            font-size: 0.85em;
-            color: #6c757d;
-            line-height: 1.4;
         }
         
         @media (max-width: 768px) {
@@ -981,102 +1241,137 @@
     <div class="dashboard-container">
         <div class="report-header">
             <div class="report-title">
-                <h1>🚀 GitLab  Management Dashboard
-                    <a href="README.md" class="help-link" target="_blank" style="font-size: 0.6em; margin-left: 15px;">
-                        <span class="help-icon">📚</span>
-                        <span class="help-badge">Complete Guide</span>
-                    </a>
-                </h1>
-                <div class="report-date">📅 $ReportDate</div>
+                <h1>GitLab Portfolio Management Dashboard</h1>
+                <div class="report-date">Report generated $ReportDate</div>
             </div>
             <div class="report-meta">
-                <div>Analysis Period: $DaysBack days</div>
-                <div>Execution Time: $([math]::Round($ExecutionTime.TotalMinutes, 2)) minutes</div>
-                <div>Total Projects: $totalProjects</div>
+                <div><strong>Analysis window:</strong> $DaysBack days</div>
+                <div><strong>Execution time:</strong> $([math]::Round($ExecutionTime.TotalMinutes, 2)) minutes</div>
+                <div><strong>Projects assessed:</strong> $totalProjects</div>
             </div>
+        </div>
         </div>
         
         <div class="metrics-grid">
-            <div class="metric-card" data-tooltip="Total number of projects in your GitLab instance.📊 
-Criteria: All projects accessible with current permissions">
+            <div class="metric-card" data-tooltip="Total number of projects accessible with the current credentials.">
+                <div class="metric-title">Portfolio footprint</div>
                 <div class="metric-value">$totalProjects</div>
-                <div class="metric-label">Total Projects</div>
-                <div class="metric-trend trend-up">+$activeProjectsCount active</div>
+                <div class="metric-label">Projects assessed in this cycle</div>
+                <div class="metric-trend trend-up">$activeProjectsCount currently active</div>
             </div>
             
-            <div class="metric-card" data-tooltip="Projects with activity in the last 30 days.⚡ 
-Criteria: Commits, issues, or merge requests created/updated in last 30 days">
+            <div class="metric-card" data-tooltip="Projects with commits, issues, or merge requests recorded in the last 30 days.">
+                <div class="metric-title">Active delivery</div>
                 <div class="metric-value">$activeProjects</div>
-                <div class="metric-label">Active Projects</div>
-                <div class="metric-trend">last 30 days</div>
+                <div class="metric-label">Projects with recent activity (&lt;= 30 days)</div>
+                <div class="metric-trend">Portfolio freshness indicator</div>
             </div>
             
-            <div class="metric-card" data-tooltip="Percentage of projects with Medium or High adoption levels.📈 
-Criteria: Based on activity frequency, contributor count, and pipeline success">
-                <div class="metric-value enhanced-tooltip" data-help="Target: &gt;80% for optimal GitLab utilization">$adoptionRate%</div>
-                <div class="metric-label">Adoption Rate</div>
-                <div class="metric-trend trend-up">$adoptionRatio</div>
+            <div class="metric-card" data-tooltip="Percentage of projects operating at medium or high adoption levels based on activity, contributors, and CI success.">
+                <div class="metric-title">Adoption strength</div>
+                <div class="metric-value enhanced-tooltip" data-help="Target: greater than 80% for optimal platform utilisation">$adoptionRate%</div>
+                <div class="metric-label">Share of projects with healthy GitLab usage</div>
+                <div class="metric-trend trend-up">$adoptionRatio adoption ratio</div>
             </div>
             
-            <div class="metric-card" data-tooltip="Average success rate of CI/CD pipelines across all projects.🔄 
-Criteria: Successful pipelines divided by total pipelines executed">
+            <div class="metric-card" data-tooltip="Average CI/CD pipeline success rate across all tracked projects.">
+                <div class="metric-title">Delivery reliability</div>
                 <div class="metric-value">$avgPipelineSuccess%</div>
-                <div class="metric-label">Pipeline Success</div>
-                <div class="metric-trend">$projectsWithPipelinesCount projects</div>
+                <div class="metric-label">Mean pipeline pass rate</div>
+                <div class="metric-trend">$projectsWithPipelinesCount projects running pipelines</div>
             </div>
             
-            <div class="metric-card" data-tooltip="Total number of critical severity vulnerabilities found.🛡️ 
-Criteria: SAST and SCA scans showing critical severity issues">
+            <div class="metric-card" data-tooltip="Critical severity vulnerabilities detected across SAST and dependency scans.">
+                <div class="metric-title">Security exposure</div>
                 <div class="metric-value">$totalCriticalVulns</div>
-                <div class="metric-label">Critical Vulnerabilities</div>
-                <div class="metric-trend trend-down">$projectsWithCriticalVulns projects affected</div>
+                <div class="metric-label">Critical vulnerabilities across the portfolio</div>
+                <div class="metric-trend trend-down">$projectsWithCriticalVulns projects require remediation</div>
             </div>
             
-            <div class="metric-card" data-tooltip="Overall code maintainability score across projects.🔧 
-Criteria: Based on code smells, complexity, duplication, and technical debt">
+            <div class="metric-card" data-tooltip="Average maintainability benchmark derived from complexity, duplication, and technical debt signals.">
+                <div class="metric-title">Maintainability index</div>
                 <div class="metric-value">$avgMaintainability%</div>
-                <div class="metric-label">Avg Maintainability</div>
-                <div class="metric-trend">Code Quality Score</div>
+                <div class="metric-label">Average maintainability score</div>
+                <div class="metric-trend">Code quality benchmark</div>
             </div>
         </div>
-        
+        <div class="executive-summary">
+            <div class="summary-header">
+                <h2>Executive observations</h2>
+                <p>Use the highlights below to brief stakeholders on portfolio health, delivery performance, and immediate follow-up items.</p>
+            </div>
+            <div class="summary-columns">
+                <div class="summary-card">
+                    <span class="summary-badge">Delivery</span>
+                    <h3>Engineering throughput</h3>
+                    <ul>
+                        <li>Average pipeline success of $avgPipelineSuccess% across $projectsWithPipelinesCount projects indicates overall delivery stability.</li>
+                        <li>DevOps maturity radar score sits at $avgCI_CDScore for CI/CD automation and $avgTestingScore for quality gates.</li>
+                        <li>Monitor $pipelinePoor projects with failing pipelines to maintain a resilient release cadence.</li>
+                    </ul>
+                </div>
+                <div class="summary-card">
+                    <span class="summary-badge">Security</span>
+                    <h3>Risk posture</h3>
+                    <ul>
+                        <li>$totalCriticalVulns critical vulnerabilities detected; $projectsWithCriticalVulns projects require remediation attention.</li>
+                        <li>Security readiness score averages $avgSecurityScore; raise scanning frequency where coverage is lagging.</li>
+                        <li>Track remediation SLAs to ensure backlog items do not exceed agreed thresholds.</li>
+                    </ul>
+                </div>
+                <div class="summary-card">
+                    <span class="summary-badge">Adoption</span>
+                    <h3>Platform engagement</h3>
+                    <ul>
+                        <li>$adoptionRate% of projects demonstrate healthy GitLab usage; $needsImprovementAdoption need targeted enablement.</li>
+                        <li>$poorAdoption projects are below baseline adoption and should be reviewed with product owners.</li>
+                        <li>$criticalBarriers critical adoption barriers logged during this cycle.</li>
+                    </ul>
+                </div>
+                <div class="summary-card">
+                    <span class="summary-badge">Collaboration</span>
+                    <h3>Team dynamics</h3>
+                    <ul>
+                        <li>Collaboration score averages $avgCollaborationScore%; encourage pairing on teams leaving reviews unanswered.</li>
+                        <li>$singleContributor projects rely on a single contributor; consider succession planning.</li>
+                        <li>$largeTeam projects benefit from robust collaboration patterns that can be used as exemplars.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
         <!-- ADOPTION INSIGHTS SECTION -->
         <div class="section">
             <div class="section-header">
                 <div>
-                    <!-- <h2 class="section-title">🚀 GitLab Adoption & Utilization Insights
-                        <a href="#" class="help-link" onclick="showHelp('adoption'); return false;">
-                            <span class="help-icon">?</span>
-                            <span class="help-badge">Help & Tips</span>
-                        </a>
-                    </h2> -->
+                    <h2 class="section-title">Adoption and enablement trends</h2>
                     <div class="section-subtitle">Analytics to drive platform adoption and development excellence</div>
                 </div>
             </div>
             
             <div class="metrics-grid">
-                <div class="metric-card" data-tooltip="Average feature adoption score across all projects.🎯 
+                <div class="metric-card" data-tooltip="Average feature adoption score across all projects. 
 Criteria: Usage of GitLab features including CI/CD, security scanning, issue tracking, and collaboration tools">
                     <div class="metric-value enhanced-tooltip" data-help="Goal: &gt;70% average feature adoption score">$avgFeatureAdoption%</div>
                     <div class="metric-label">Feature Adoption</div>
                     <div class="metric-trend trend-up">Platform Utilization</div>
                 </div>
                 
-                <div class="metric-card" data-tooltip="Team collaboration effectiveness score.👥 
+                <div class="metric-card" data-tooltip="Team collaboration effectiveness score. 
 Criteria: Based on merge request activity, code reviews, issue discussions, and team interactions">
                     <div class="metric-value">$avgCollaborationScore%</div>
                     <div class="metric-label">Collaboration Health</div>
                     <div class="metric-trend">Team Effectiveness</div>
                 </div>
                 
-                <div class="metric-card" data-tooltip="DevOps maturity implementation level.⚙️ 
+                <div class="metric-card" data-tooltip="DevOps maturity implementation level. 
 Criteria: CI/CD pipeline sophistication, automation level, and DevOps best practices adoption">
                     <div class="metric-value enhanced-tooltip" data-help="Target: &gt;60% for 'Managed' maturity level">$avgDevOpsMaturity%</div>
                     <div class="metric-label">DevOps Maturity</div>
                     <div class="metric-trend">Process Excellence</div>
                 </div>
                 
-                <div class="metric-card" data-tooltip="Projects with critical adoption barriers requiring immediate support.⚠️ 
+                <div class="metric-card" data-tooltip="Projects with critical adoption barriers requiring immediate support. 
 Criteria: High-severity barriers preventing effective GitLab utilization">
                     <div class="metric-value">$criticalBarriers</div>
                     <div class="metric-label">Critical Barriers</div>
@@ -1085,7 +1380,7 @@ Criteria: High-severity barriers preventing effective GitLab utilization">
             </div>
             
             <div class="adoption-insights">
-                <h4>📈 Adoption Strategy Recommendations:</h4>
+                <h4> Adoption Strategy Recommendations:</h4>
                 <div class="insight-grid">
                     <div class="insight-card excellent">
                         <div class="insight-number">$excellentAdoption</div>
@@ -1111,24 +1406,24 @@ Criteria: High-severity barriers preventing effective GitLab utilization">
             </div>
             
             <div class="management-actions">
-                <h4>🎯 Management Action Items:</h4>
+                <h4> Management Action Items:</h4>
                 <div class="action-grid">
                     <div class="action-item high-priority">
-                        <div class="action-icon">🚨</div>
+                        <div class="action-icon"></div>
                         <div class="action-content">
                             <div class="action-title">Immediate Support Needed</div>
                             <div class="action-desc">$criticalBarriers projects with critical barriers - assign dedicated support resources</div>
                         </div>
                     </div>
                     <div class="action-item medium-priority">
-                        <div class="action-icon">📚</div>
+                        <div class="action-icon"></div>
                         <div class="action-content">
                             <div class="action-title">Training & Education</div>
                             <div class="action-desc">$needsImprovementAdoption projects need targeted GitLab training programs</div>
                         </div>
                     </div>
                     <div class="action-item low-priority">
-                        <div class="action-icon">🏆</div>
+                        <div class="action-icon"></div>
                         <div class="action-content">
                             <div class="action-title">Best Practice Sharing</div>
                             <div class="action-desc">$excellentAdoption high-performing projects can mentor others</div>
@@ -1164,21 +1459,21 @@ Criteria: High-severity barriers preventing effective GitLab utilization">
         <div class="section">
             <div class="section-header">
                 <div>
-                    <h2 class="section-title">🎯 Executive Insights</h2>
+                    <h2 class="section-title"> Executive Insights</h2>
                     <div class="section-subtitle">Key findings and actionable insights</div>
                 </div>
             </div>
             
             <div class="team-guidance">
-                <h4>📋 Dashboard Overview:</h4>
+                <h4> Dashboard Overview:</h4>
                 <p>This dashboard provides a holistic view of GitLab adoption, security posture, and development efficiency across your organization.</p>
                 <p>Use the  data tables below to drill down into specific areas requiring attention.</p>
             </div>
             
             <div class="improvement-tips">
-                <h4>🚀 Quick Wins:
+                <h4> Quick Wins:
                     <a href="README.md#for-development-teams" class="help-link" target="_blank" style="font-size: 0.8em;">
-                        <span class="help-icon">💡</span>
+                        <span class="help-icon"></span>
                         <span class="help-badge">Improvement Guide</span>
                     </a>
                 </h4>
@@ -1217,9 +1512,9 @@ Criteria: High-severity barriers preventing effective GitLab utilization">
         <div class="section">
             <div class="section-header">
                 <div>
-                    <h2 class="section-title">📊  Data Analysis
+                    <h2 class="section-title">Portfolio analytics
                         <a href="README.md" class="help-link" target="_blank">
-                            <span class="help-icon">📖</span>
+                            <span class="help-icon"></span>
                             <span class="help-badge">Full Documentation</span>
                         </a>
                     </h2>
@@ -1229,32 +1524,32 @@ Criteria: High-severity barriers preventing effective GitLab utilization">
             
             <div class="tab-container">
                 <div class="tab-buttons">
-                    <button class="tab-button active" onclick="openTab('overview')">📋 Project Health
+                    <button class="tab-button active" onclick="openTab('overview')"> Project Health
                         <!-- <a href="#" class="help-link" onclick="showHelp('health'); event.stopPropagation(); return false;">
                             <span class="help-icon">?</span>
                         </a> -->
                     </button>
-                    <button class="tab-button" onclick="openTab('security')">🛡️ Security Findings
+                    <button class="tab-button" onclick="openTab('security')"> Security Findings
                         <!-- <a href="#" class="help-link" onclick="showHelp('security'); event.stopPropagation(); return false;">
                             <span class="help-icon">?</span>
                         </a> -->
                     </button>
-                    <button class="tab-button" onclick="openTab('quality')">📊 Code Quality
+                    <button class="tab-button" onclick="openTab('quality')"> Code Quality
                         <!-- <a href="#" class="help-link" onclick="showHelp('quality'); event.stopPropagation(); return false;">
                             <span class="help-icon">?</span>
                         </a> -->
                     </button>
-                    <button class="tab-button" onclick="openTab('cost')">💰 Cost Analysis
+                    <button class="tab-button" onclick="openTab('cost')"> Cost Analysis
                         <!-- <a href="#" class="help-link" onclick="showHelp('cost'); event.stopPropagation(); return false;">
                             <span class="help-icon">?</span>
                         </a> -->
                     </button>
-                    <button class="tab-button" onclick="openTab('technology')">🛠️ Technology Stack
+                    <button class="tab-button" onclick="openTab('technology')"> Technology Stack
                         <!-- <a href="#" class="help-link" onclick="showHelp('technology'); event.stopPropagation(); return false;">
                             <span class="help-icon">?</span>
                         </a> -->
                     </button>
-                    <button class="tab-button" onclick="openTab('business')">💼 Business Alignment
+                    <button class="tab-button" onclick="openTab('business')"> Business Alignment
                         <!-- <a href="#" class="help-link" onclick="showHelp('business'); event.stopPropagation(); return false;">
                             <span class="help-icon">?</span>
                         </a> -->
@@ -1265,125 +1560,60 @@ Criteria: High-severity barriers preventing effective GitLab utilization">
                 <div id="overview" class="tab-content active">
                     <div class="health-scoring-container">
                         <div class="scoring-header">
-                            <h4>📈 Project Health Scoring Framework</h4>
+                            <h4> Project Health Scoring Framework</h4>
                             <p class="scoring-subtitle"> evaluation methodology for GitLab project adoption and effectiveness</p>
                         </div>
                         
-                        <div class="scoring-breakdown">
-                            <div class="scoring-formula">
-                                <h5>🧮 Health Score Calculation (0-100 Points)</h5>
-                                <div class="formula-container">
-                                    <div class="formula-component">
-                                        <div class="component-icon">🔥</div>
-                                        <div class="component-details">
-                                            <span class="component-name">Recent Activity</span>
-                                            <span class="component-points">30 points</span>
-                                            <div class="component-criteria">
-                                                <span class="criteria-item">≤7 days: 30pts</span>
-                                                <span class="criteria-item">≤30 days: 20pts</span>
-                                                <span class="criteria-item">≤90 days: 10pts</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="formula-component">
-                                        <div class="component-icon">🎯</div>
-                                        <div class="component-details">
-                                            <span class="component-name">Issue Management</span>
-                                            <span class="component-points">20 points</span>
-                                            <div class="component-criteria">
-                                                <span class="criteria-item">Closure rate &gt;70%: 20pts</span>
-                                                <span class="criteria-item">Closure rate &gt;50%: 15pts</span>
-                                                <span class="criteria-item">Active issues: 10pts</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="formula-component">
-                                        <div class="component-icon">🔄</div>
-                                        <div class="component-details">
-                                            <span class="component-name">Merge Request Activity</span>
-                                            <span class="component-points">20 points</span>
-                                            <div class="component-criteria">
-                                                <span class="criteria-item">5+ merged MRs: 20pts</span>
-                                                <span class="criteria-item">2+ merged MRs: 15pts</span>
-                                                <span class="criteria-item">Any MRs: 10pts</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="formula-component">
-                                        <div class="component-icon">⚡</div>
-                                        <div class="component-details">
-                                            <span class="component-name">Pipeline Success</span>
-                                            <span class="component-points">20 points</span>
-                                            <div class="component-criteria">
-                                                <span class="criteria-item">≥90% success: 20pts</span>
-                                                <span class="criteria-item">≥70% success: 15pts</span>
-                                                <span class="criteria-item">≥50% success: 10pts</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="formula-component">
-                                        <div class="component-icon">👥</div>
-                                        <div class="component-details">
-                                            <span class="component-name">Team Collaboration</span>
-                                            <span class="component-points">10 points</span>
-                                            <div class="component-criteria">
-                                                <span class="criteria-item">3+ contributors: 10pts</span>
-                                                <span class="criteria-item">2+ contributors: 5pts</span>
-                                                <span class="criteria-item">Single contributor: 0pts</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div class="scoring-pill-grid" aria-label="Project health scoring dimensions">
+                            <div class="scoring-pill" role="button" tabindex="0" data-tooltip="30 points if last activity occurred within 7 days, 20 points if within 30 days, and 10 points when activity occurred within 90 days.">
+                                <span class="pill-title">Recent Activity</span>
+                                <span class="pill-score">30 pts</span>
                             </div>
-                            
-                            <div class="adoption-levels">
-                                <h5>🏆 Adoption Level Classification</h5>
-                                <div class="levels-grid">
-                                    <div class="level-card level-high">
-                                        <div class="level-icon">🟢</div>
-                                        <div class="level-info">
-                                            <span class="level-name">High Adoption</span>
-                                            <span class="level-range">80-100 points</span>
-                                            <span class="level-desc">Optimal GitLab utilization with active development and strong processes</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="level-card level-medium">
-                                        <div class="level-icon">🟡</div>
-                                        <div class="level-info">
-                                            <span class="level-name">Medium Adoption</span>
-                                            <span class="level-range">60-79 points</span>
-                                            <span class="level-desc">Good GitLab usage with room for improvement in some areas</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="level-card level-low">
-                                        <div class="level-icon">🟠</div>
-                                        <div class="level-info">
-                                            <span class="level-name">Low Adoption</span>
-                                            <span class="level-range">40-59 points</span>
-                                            <span class="level-desc">Basic GitLab usage, needs support to improve adoption</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="level-card level-very-low">
-                                        <div class="level-icon">🔴</div>
-                                        <div class="level-info">
-                                            <span class="level-name">Very Low Adoption</span>
-                                            <span class="level-range">0-39 points</span>
-                                            <span class="level-desc">Minimal GitLab utilization, requires immediate intervention</span>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div class="scoring-pill" role="button" tabindex="0" data-tooltip="Issue completion rate ≥80% earns 20 pts; 50-79% earns 15 pts; active backlog triage earns 10 pts.">
+                                <span class="pill-title">Issue Management</span>
+                                <span class="pill-score">20 pts</span>
+                            </div>
+                            <div class="scoring-pill" role="button" tabindex="0" data-tooltip="More than 5 merged merge requests in the window earns 20 pts, 3-5 earns 15 pts, at least 1 earns 10 pts.">
+                                <span class="pill-title">Merge Requests</span>
+                                <span class="pill-score">20 pts</span>
+                            </div>
+                            <div class="scoring-pill" role="button" tabindex="0" data-tooltip="Pipeline success ≥90% earns 20 pts; 70-89% earns 15 pts; 50-69% earns 10 pts. Failures below 50% receive no points.">
+                                <span class="pill-title">Pipeline Success</span>
+                                <span class="pill-score">20 pts</span>
+                            </div>
+                            <div class="scoring-pill" role="button" tabindex="0" data-tooltip="Three or more active contributors earn 10 pts, two contributors earn 5 pts, and single-contributor projects earn 0 pts.">
+                                <span class="pill-title">Team Collaboration</span>
+                                <span class="pill-score">10 pts</span>
+                            </div>
+                        </div>
+                        <p class="scoring-note">Hover or focus each scoring dimension to view the thresholds and points awarded.</p>
+                        
+                        <div class="adoption-pill-grid" aria-label="Adoption level classification">
+                            <div class="adoption-pill level-high" role="button" tabindex="0" data-tooltip="80-100 pts. Project is highly active, with strong DevOps practices and consistent GitLab feature usage.">
+                                <span class="pill-heading">High Adoption</span>
+                                <span class="pill-range">80-100 pts</span>
+                                <span class="pill-desc">Optimal GitLab utilisation with healthy delivery signals.</span>
+                            </div>
+                            <div class="adoption-pill level-medium" role="button" tabindex="0" data-tooltip="60-79 pts. Good GitLab usage with a few areas (pipelines, issues, collaboration) needing attention.">
+                                <span class="pill-heading">Medium Adoption</span>
+                                <span class="pill-range">60-79 pts</span>
+                                <span class="pill-desc">Solid posture; target specific improvements to reach high adoption.</span>
+                            </div>
+                            <div class="adoption-pill level-low" role="button" tabindex="0" data-tooltip="40-59 pts. Basic GitLab usage; teams need enablement across activity, merge requests, and automation.">
+                                <span class="pill-heading">Low Adoption</span>
+                                <span class="pill-range">40-59 pts</span>
+                                <span class="pill-desc">Ramp up coaching and CI/CD adoption to move above the baseline.</span>
+                            </div>
+                            <div class="adoption-pill level-very-low" role="button" tabindex="0" data-tooltip="0-39 pts. Minimal GitLab utilisation; immediate intervention required to prevent project drift.">
+                                <span class="pill-heading">Very Low Adoption</span>
+                                <span class="pill-range">0-39 pts</span>
+                                <span class="pill-desc">Escalate to leadership to re-activate or retire the project.</span>
                             </div>
                         </div>
                     </div>
                     
-                    <table class="data-table sortable">
+                    <p class="health-table-note">Select any project row to open a detailed health summary with recommended follow-up actions.</p>
+                    <table class="data-table sortable health-table">
                         <thead>
                             <tr>
                                 <th data-sort="string">Project Name</th>
@@ -1407,11 +1637,45 @@ $(foreach($project in $ProjectReports) {
     }
     
     $pipelineSuccessPercent = [math]::Round($project.PipelineSuccessRate * 100)
+    $projectNameAttr = ($project.ProjectName -replace '"','&quot;')
+    $projectPathAttr = ($project.ProjectPath -replace '"','&quot;')
+    $namespaceAttr = if ($project.Namespace) { ($project.Namespace -replace '"','&quot;') } else { '' }
+    $recommendationAttr = if ($project.Recommendation) { ($project.Recommendation -replace '"','&quot;') } else { 'No recommendation recorded.' }
+    $webUrlAttr = if ($project.WebURL) { ($project.WebURL -replace '"','&quot;') } else { '' }
+    $lastActivityLabel = if ($project.LastActivity) { $project.LastActivity } else { 'Unknown' }
+    $lastActivityAttr = ($lastActivityLabel -replace '"','&quot;')
+    $lastCommitAuthorAttr = if ($project.LastCommitAuthor) { ($project.LastCommitAuthor -replace '"','&quot;') } else { '' }
+    $lastCommitDateAttr = if ($project.LastCommitDate) { ($project.LastCommitDate -replace '"','&quot;') } else { '' }
+    $createdDateAttr = if ($project.CreatedAt) { $project.CreatedAt.ToString('yyyy-MM-dd') } else { '' }
+    $totalIssues = $project.OpenIssues + $project.ClosedIssues
+    $issueCompletionPercent = if ($totalIssues -gt 0) { [math]::Round(($project.ClosedIssues / $totalIssues) * 100, 1) } else { 0 }
+    $openMRs = if ($project.OpenMergeRequests) { $project.OpenMergeRequests } else { 0 }
+    $mergedMRs = if ($project.MergedMergeRequests) { $project.MergedMergeRequests } else { 0 }
 
 @"
-                            <tr class="$rowClass">
+                            <tr class="health-row $rowClass"
+                                data-project-name="$projectNameAttr"
+                                data-project-path="$projectPathAttr"
+                                data-namespace="$namespaceAttr"
+                                data-web-url="$webUrlAttr"
+                                data-health-score="$($project.ProjectHealth)"
+                                data-adoption="$($project.AdoptionLevel)"
+                                data-days-since="$($project.DaysSinceLastActivity)"
+                                data-last-activity="$lastActivityAttr"
+                                data-open-issues="$($project.OpenIssues)"
+                                data-closed-issues="$($project.ClosedIssues)"
+                                data-total-issues="$totalIssues"
+                                data-issue-completion="$issueCompletionPercent"
+                                data-open-mrs="$openMRs"
+                                data-merged-mrs="$mergedMRs"
+                                data-pipeline-success="$pipelineSuccessPercent"
+                                data-contributors="$($project.ContributorsCount)"
+                                data-recommendation="$recommendationAttr"
+                                data-last-commit-author="$lastCommitAuthorAttr"
+                                data-last-commit-date="$lastCommitDateAttr"
+                                data-created="$createdDateAttr">
                                 <td><strong><a href="$($project.WebURL)" target="_blank">$($project.ProjectName)</a></strong><br>
-                                    <small style="color: #666;">$($project.ProjectPath)</small></td>
+                                    <small style="color: var(--muted);">$($project.ProjectPath)</small></td>
                                 <td><span class="badge badge-info">$($project.ProjectHealth)</span></td>
                                 <td>$($project.AdoptionLevel)</td>
                                 <td>$($project.DaysSinceLastActivity) days ago</td>
@@ -1429,7 +1693,7 @@ $(foreach($project in $ProjectReports) {
                 <!-- SECURITY FINDINGS TAB -->
                 <div id="security" class="tab-content">
                     <div class="team-guidance">
-                        <h4>🛡️ Security Assessment Criteria:</h4>
+                        <h4> Security Assessment Criteria:</h4>
                         <p><strong>Risk Levels:</strong> Critical (Any critical vulns), High (3+ high vulns), Medium (1-2 high vulns), Low (No critical/high vulns)</p>
                         <p><strong>Security Grades:</strong> A-F based on vulnerability count and severity distribution</p>
                     </div>
@@ -1514,7 +1778,7 @@ $(foreach($project in $ProjectReports) {
                 <!-- CODE QUALITY TAB -->
                 <div id="quality" class="tab-content">
                     <div class="team-guidance">
-                        <h4>📊 Code Quality Assessment:</h4>
+                        <h4> Code Quality Assessment:</h4>
                         <p><strong>Overall Grades:</strong> Excellent (A+), Good (A-B), Fair (C), Poor (D), Critical (E-F)</p>
                         <p><strong>Maintainability:</strong> Based on code smells, complexity, and duplication</p>
                     </div>
@@ -1565,7 +1829,7 @@ $(foreach($quality in $CodeQualityReports) {
                 <!-- COST ANALYSIS TAB -->
                 <div id="cost" class="tab-content">
                     <div class="team-guidance">
-                        <h4>💰 Cost Analysis Methodology:</h4>
+                        <h4> Cost Analysis Methodology:</h4>
                         <p><strong>Total Cost:</strong> Storage + CI/CD + Development Time + Infrastructure</p>
                         <p><strong>ROI:</strong> Based on business value vs total investment</p>
                     </div>
@@ -1592,7 +1856,7 @@ $costAnalysisTableRows
                 <!-- TECHNOLOGY STACK TAB -->
                 <div id="technology" class="tab-content">
                     <div class="team-guidance">
-                        <h4>🛠️ Technology Stack Analysis:</h4>
+                        <h4> Technology Stack Analysis:</h4>
                         <p>Overview of programming languages, frameworks, and tools used across projects</p>
                     </div>
                     
@@ -1631,7 +1895,7 @@ $(foreach($tech in $TechReports) {
                 <!-- BUSINESS ALIGNMENT TAB -->
                 <div id="business" class="tab-content">
                     <div class="team-guidance">
-                        <h4>💼 Business Alignment Criteria:</h4>
+                        <h4> Business Alignment Criteria:</h4>
                         <p><strong>Business Value Score:</strong> Based on user impact, revenue potential, and strategic importance</p>
                         <p><strong>Criticality Levels:</strong> Critical, High, Medium, Low, Experimental</p>
                     </div>
@@ -1678,13 +1942,78 @@ $(foreach($business in $BusinessReports) {
         </div>
 
         <div class="footer">
-            <p>GitLab  Management Dashboard | Generated on $ReportDate</p>
+            <p>Management Dashboard | Generated on $ReportDate</p>
             <p>For detailed team-specific reports and improvement plans, contact your GitLab administrator.</p>
+        </div>
+    </div>
+
+    <div id="healthOverlay" class="health-overlay" role="dialog" aria-modal="true" aria-labelledby="healthOverlayTitle">
+        <div class="health-overlay-panel" tabindex="-1">
+            <button id="healthOverlayClose" class="health-overlay-close" aria-label="Close project health details">&times;</button>
+            <div class="health-overlay-header">
+                <h3 id="healthOverlayTitle">Project name</h3>
+                <div class="health-overlay-subtitle" id="healthOverlaySubtitle"></div>
+            </div>
+            <div class="health-overlay-section">
+                <div class="health-metrics-grid">
+                    <div class="health-metric">
+                        <span class="value" id="healthMetricScore">0</span>
+                        <span class="label">Health score</span>
+                    </div>
+                    <div class="health-metric">
+                        <span class="value" id="healthMetricAdoption">-</span>
+                        <span class="label">Adoption level</span>
+                    </div>
+                    <div class="health-metric">
+                        <span class="value" id="healthMetricPipeline">0%</span>
+                        <span class="label">Pipeline success</span>
+                    </div>
+                    <div class="health-metric">
+                        <span class="value" id="healthMetricIssues">0 / 0</span>
+                        <span class="label">Open vs closed issues</span>
+                    </div>
+                    <div class="health-metric">
+                        <span class="value" id="healthMetricCompletion">0%</span>
+                        <span class="label">Issue completion</span>
+                    </div>
+                    <div class="health-metric">
+                        <span class="value" id="healthMetricContributors">0</span>
+                        <span class="label">Contributors</span>
+                    </div>
+                </div>
+            </div>
+            <div class="health-overlay-section">
+                <h4>Recent activity</h4>
+                <p id="healthOverlayActivity"></p>
+            </div>
+            <div class="health-overlay-section" id="healthOverlayRecommendationWrap">
+                <h4>Current dashboard recommendation</h4>
+                <p id="healthOverlayRecommendation"></p>
+            </div>
+            <div class="health-overlay-section">
+                <h4>Recommended next steps</h4>
+                <ul id="healthOverlaySuggestions" class="health-suggestion-list">
+                    <li>No suggestions available.</li>
+                </ul>
+            </div>
+            <div class="health-links" id="healthOverlayLinks"></div>
         </div>
     </div>
 
     <script>
         // Tab navigation
+        function renderEmptyState(canvasId, message) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) { return; }
+            const container = canvas.parentElement;
+            if (!container) { return; }
+            const empty = document.createElement('div');
+            empty.className = 'chart-empty';
+            empty.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(empty);
+        }
+
         function openTab(tabName) {
             const tabContents = document.getElementsByClassName('tab-content');
             for (let i = 0; i < tabContents.length; i++) {
@@ -1710,6 +2039,53 @@ $(foreach($business in $BusinessReports) {
                         sortTable(table, index);
                     });
                 });
+            });
+
+            const healthRows = document.querySelectorAll('.health-row');
+            const healthOverlay = document.getElementById('healthOverlay');
+            const healthOverlayClose = document.getElementById('healthOverlayClose');
+
+            healthRows.forEach(row => {
+                row.addEventListener('click', () => {
+                    const detail = {
+                        projectName: row.dataset.projectName || (row.querySelector('td strong') ? row.querySelector('td strong').textContent.trim() : 'Unknown project'),
+                        projectPath: row.dataset.projectPath || '',
+                        namespace: row.dataset.namespace || '',
+                        webUrl: row.dataset.webUrl || '',
+                        healthScore: Number(row.dataset.healthScore || 0),
+                        adoptionLevel: row.dataset.adoption || 'Unknown',
+                        daysSince: Number(row.dataset.daysSince || 0),
+                        lastActivity: row.dataset.lastActivity || 'Unknown',
+                        openIssues: Number(row.dataset.openIssues || 0),
+                        closedIssues: Number(row.dataset.closedIssues || 0),
+                        totalIssues: Number(row.dataset.totalIssues || 0),
+                        issueCompletion: Number(row.dataset.issueCompletion || 0),
+                        openMrs: Number(row.dataset.openMrs || 0),
+                        mergedMrs: Number(row.dataset.mergedMrs || 0),
+                        pipelineSuccess: Number(row.dataset.pipelineSuccess || 0),
+                        contributors: Number(row.dataset.contributors || 0),
+                        recommendation: row.dataset.recommendation || '',
+                        lastCommitAuthor: row.dataset.lastCommitAuthor || '',
+                        lastCommitDate: row.dataset.lastCommitDate || '',
+                        createdDate: row.dataset.created || ''
+                    };
+                    openHealthOverlay(detail);
+                });
+            });
+
+            if (healthOverlay && healthOverlayClose) {
+                healthOverlayClose.addEventListener('click', closeHealthOverlay);
+                healthOverlay.addEventListener('click', (event) => {
+                    if (event.target === healthOverlay) {
+                        closeHealthOverlay();
+                    }
+                });
+            }
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && healthOverlay && healthOverlay.classList.contains('active')) {
+                    closeHealthOverlay();
+                }
             });
         });
         
@@ -1743,6 +2119,164 @@ $(foreach($business in $BusinessReports) {
         }
         
         // Adoption-focused Charts
+        function openHealthOverlay(detail) {
+            const overlay = document.getElementById('healthOverlay');
+            if (!overlay) { return; }
+
+            document.body.classList.add('no-scroll');
+            overlay.classList.add('active');
+            const panel = overlay.querySelector('.health-overlay-panel');
+            if (panel) {
+                panel.focus();
+            }
+
+            const titleEl = document.getElementById('healthOverlayTitle');
+            const subtitleEl = document.getElementById('healthOverlaySubtitle');
+            const activityEl = document.getElementById('healthOverlayActivity');
+            const recommendationWrap = document.getElementById('healthOverlayRecommendationWrap');
+            const recommendationEl = document.getElementById('healthOverlayRecommendation');
+            const suggestionsEl = document.getElementById('healthOverlaySuggestions');
+            const linksEl = document.getElementById('healthOverlayLinks');
+
+            if (titleEl) {
+                titleEl.textContent = detail.projectName;
+            }
+
+            if (subtitleEl) {
+                const subtitleParts = [];
+                if (detail.namespace) { subtitleParts.push(detail.namespace); }
+                if (detail.projectPath) { subtitleParts.push(detail.projectPath); }
+                if (detail.createdDate) { subtitleParts.push('Created ' + detail.createdDate); }
+                subtitleEl.textContent = subtitleParts.join(' • ');
+            }
+
+            const healthScore = Number(detail.healthScore);
+            document.getElementById('healthMetricScore').textContent = Number.isFinite(healthScore) ? healthScore.toString() : '—';
+            document.getElementById('healthMetricAdoption').textContent = detail.adoptionLevel || 'Unknown';
+
+            const pipelineSuccess = Number(detail.pipelineSuccess);
+            document.getElementById('healthMetricPipeline').textContent = Number.isFinite(pipelineSuccess) ? (pipelineSuccess + '%') : '-';
+
+            const openIssues = Number(detail.openIssues);
+            const closedIssues = Number(detail.closedIssues);
+            const issueCompletion = Number(detail.issueCompletion);
+            document.getElementById('healthMetricIssues').textContent = openIssues + ' / ' + closedIssues;
+            document.getElementById('healthMetricCompletion').textContent = Number.isFinite(issueCompletion) ? (issueCompletion + '%') : '-';
+
+            document.getElementById('healthMetricContributors').textContent = Number(detail.contributors) || 0;
+
+            if (activityEl) {
+                const activityParts = [];
+                if (detail.lastActivity && detail.lastActivity !== 'Unknown') {
+                    const days = Number(detail.daysSince);
+                    const daySuffix = Number.isFinite(days) ? ' (' + days + ' day' + (days === 1 ? '' : 's') + ' ago)' : '';
+                    activityParts.push('Last activity recorded on ' + detail.lastActivity + daySuffix + '.');
+                }
+                if (detail.lastCommitAuthor) {
+                    const commitDateText = detail.lastCommitDate ? ' on ' + detail.lastCommitDate : '';
+                    activityParts.push('Most recent commit by ' + detail.lastCommitAuthor + commitDateText + '.');
+                }
+                if (Number(detail.openMrs) || Number(detail.mergedMrs)) {
+                    activityParts.push('Merge requests: ' + (detail.openMrs || 0) + ' open, ' + (detail.mergedMrs || 0) + ' merged during the reporting window.');
+                }
+                if (activityParts.length === 0) {
+                    activityParts.push('No recent activity data recorded for this project during the reporting window.');
+                }
+                activityEl.textContent = activityParts.join(' ');
+            }
+
+            if (recommendationWrap && recommendationEl) {
+                const recommendationText = (detail.recommendation || '').trim();
+                if (recommendationText.length > 0) {
+                    recommendationWrap.style.display = '';
+                    recommendationEl.textContent = recommendationText;
+                } else {
+                    recommendationWrap.style.display = 'none';
+                }
+            }
+
+            if (suggestionsEl) {
+                const suggestions = buildHealthSuggestions(detail);
+                suggestionsEl.innerHTML = '';
+                if (suggestions.length === 0) {
+                    const li = document.createElement('li');
+                    li.textContent = 'Project is on track. Continue monitoring key indicators and celebrate wins with the team.';
+                    suggestionsEl.appendChild(li);
+                } else {
+                    suggestions.forEach(text => {
+                        const li = document.createElement('li');
+                        li.textContent = text;
+                        suggestionsEl.appendChild(li);
+                    });
+                }
+            }
+
+            if (linksEl) {
+                linksEl.innerHTML = '';
+                if (detail.webUrl) {
+                    linksEl.appendChild(createHealthLink(detail.webUrl, 'View project'));
+                    linksEl.appendChild(createHealthLink(detail.webUrl + '/-/issues', 'Issues & boards', 'secondary'));
+                    linksEl.appendChild(createHealthLink(detail.webUrl + '/-/merge_requests', 'Merge requests', 'secondary'));
+                    linksEl.appendChild(createHealthLink(detail.webUrl + '/-/pipelines', 'CI/CD pipelines', 'secondary'));
+                }
+            }
+        }
+
+        function closeHealthOverlay() {
+            const overlay = document.getElementById('healthOverlay');
+            if (!overlay) { return; }
+            overlay.classList.remove('active');
+            document.body.classList.remove('no-scroll');
+        }
+
+        function createHealthLink(url, label, variant) {
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.target = '_blank';
+            anchor.rel = 'noopener noreferrer';
+            anchor.className = 'health-link-btn' + (variant ? (' ' + variant) : '');
+            anchor.textContent = label;
+            return anchor;
+        }
+
+        function buildHealthSuggestions(detail) {
+            const suggestions = [];
+            const healthScore = Number(detail.healthScore);
+            const pipelineSuccess = Number(detail.pipelineSuccess);
+            const daysSince = Number(detail.daysSince);
+            const issueCompletion = Number(detail.issueCompletion);
+            const openIssues = Number(detail.openIssues);
+            const closedIssues = Number(detail.closedIssues);
+            const contributors = Number(detail.contributors);
+            const adoptionLevel = (detail.adoptionLevel || '').toLowerCase();
+
+            if (Number.isFinite(healthScore) && healthScore < 60) {
+                suggestions.push('Schedule a project health review to prioritise remediation tasks and re-align delivery goals.');
+            }
+            if (Number.isFinite(daysSince) && daysSince > 30) {
+                suggestions.push('Re-engage the project team: encourage commits or decide whether to archive if the initiative is complete.');
+            }
+            if (Number.isFinite(pipelineSuccess) && pipelineSuccess < 80) {
+                suggestions.push('Investigate recurring pipeline failures and enforce fixes before merging to maintain release reliability.');
+            }
+            const totalIssues = openIssues + closedIssues;
+            if (totalIssues > 0 && Number.isFinite(issueCompletion) && issueCompletion < 60) {
+                suggestions.push('Focus on clearing the issue backlog—consider triage sessions and tighten SLA expectations.');
+            }
+            if (Number.isFinite(contributors) && contributors <= 1) {
+                suggestions.push('Grow the contributor base to reduce delivery risk—pairing or rotating maintainers can help.');
+            }
+            if (['low', 'very low', 'unknown'].includes(adoptionLevel)) {
+                suggestions.push('Increase GitLab feature adoption: enable CI/CD and security scans, and ensure teams use merge requests.');
+            }
+            const openMrs = Number(detail.openMrs);
+            const mergedMrs = Number(detail.mergedMrs);
+            if (Number.isFinite(openMrs) && Number.isFinite(mergedMrs) && openMrs > mergedMrs + 5) {
+                suggestions.push('Align reviewers to reduce the open merge request queue and avoid stale feature branches.');
+            }
+
+            return [...new Set(suggestions)];
+        }
         const featureAdoptionChart = new Chart(document.getElementById('featureAdoptionChart'), {
             type: 'doughnut',
             data: {
@@ -1766,15 +2300,16 @@ $(foreach($business in $BusinessReports) {
             }
         });
         
-        const collaborationHasData = $collaborationChartHasData;
-        if (collaborationHasData) {
+        const collaborationChartFlag = String($collaborationChartHasData).toLowerCase() === 'true';
+        const collaborationScore = Number($avgCollaborationScore) || 0;
+        if (collaborationChartFlag) {
             new Chart(document.getElementById('collaborationChart'), {
                 type: 'bar',
                 data: {
                     labels: ['Avg Collaboration Score'],
                     datasets: [{
                         label: 'Collaboration Effectiveness (%)',
-                        data: [$avgCollaborationScore],
+                        data: [collaborationScore],
                         backgroundColor: '#17a2b8',
                         borderColor: '#138496',
                         borderWidth: 2
@@ -1830,15 +2365,16 @@ $(foreach($business in $BusinessReports) {
             }
         });
         
-        const barriersHaveData = $barriersChartHasData;
-        if (barriersHaveData) {
+        const barriersChartFlag = String($barriersChartHasData).toLowerCase() === 'true';
+        const criticalBarriersCount = Number($criticalBarriers) || 0;
+        if (barriersChartFlag) {
             new Chart(document.getElementById('barriersChart'), {
                 type: 'bar',
                 data: {
                     labels: ['Projects with Critical Barriers'],
                     datasets: [{
                         label: 'Critical Barriers Requiring Support',
-                        data: [$criticalBarriers],
+                        data: [criticalBarriersCount],
                         backgroundColor: '#dc3545',
                         borderColor: '#c82333',
                         borderWidth: 2
@@ -1962,7 +2498,7 @@ $(foreach($business in $BusinessReports) {
         // function getHelpContent(section) {
         //     const helpData = {
         //         'adoption': {
-        //             title: '🚀 GitLab Adoption & Utilization Insights',
+        //             title: 'GitLab Adoption & Utilization Insights',
         //             content: `
         //                 <h3>Purpose</h3>
         //                 <p>This section analyzes how effectively your organization is utilizing GitLab's features and identifies opportunities for improvement.</p>
@@ -1991,7 +2527,7 @@ $(foreach($business in $BusinessReports) {
         //             `
         //         },
         //         'health': {
-        //             title: '📋 Project Health Analysis',
+        //             title: 'Project Health Analysis',
         //             content: `
         //                 <h3>Health Score Components</h3>
         //                 <ul>
@@ -2021,7 +2557,7 @@ $(foreach($business in $BusinessReports) {
         //             `
         //         },
         //         'security': {
-        //             title: '🛡️ Security Findings',
+        //             title: 'Security Findings',
         //             content: `
         //                 <h3>Security Assessment</h3>
         //                 <p> vulnerability analysis across all projects using SAST, SCA, and dependency scanning.</p>
@@ -2053,7 +2589,7 @@ $(foreach($business in $BusinessReports) {
         //             `
         //         },
         //         'quality': {
-        //             title: '📊 Code Quality Analysis',
+        //             title: 'Code Quality Analysis',
         //             content: `
         //                 <h3>Quality Factors</h3>
         //                 <ul>
@@ -2084,7 +2620,7 @@ $(foreach($business in $BusinessReports) {
         //             `
         //         },
         //         'cost': {
-        //             title: '💰 Cost Analysis',
+        //             title: 'Cost Analysis',
         //             content: `
         //                 <h3>Cost Components</h3>
         //                 <ul>
@@ -2111,7 +2647,7 @@ $(foreach($business in $BusinessReports) {
         //             `
         //         },
         //         'technology': {
-        //             title: '🛠️ Technology Stack',
+        //             title: 'Technology Stack',
         //             content: `
         //                 <h3>Stack Analysis</h3>
         //                 <p>Overview of programming languages, frameworks, and technologies used across projects.</p>
@@ -2134,7 +2670,7 @@ $(foreach($business in $BusinessReports) {
         //             `
         //         },
         //         'business': {
-        //             title: '💼 Business Alignment',
+        //             title: 'Business Alignment',
         //             content: `
         //                 <h3>Alignment Assessment</h3>
         //                 <p>Evaluation of how well technical projects support strategic business objectives.</p>
@@ -2164,9 +2700,9 @@ $(foreach($business in $BusinessReports) {
         // // Quick Tips Function
         // function showQuickTips() {
         //     const quickTipsContent = {
-        //         title: '💡 Quick Improvement Tips',
+        //         title: 'Quick Improvement Tips',
         //         content: `
-        //             <h3>🎯 Immediate Actions</h3>
+        //             <h3> Immediate Actions</h3>
         //             <ul>
         //                 <li><strong>Low Adoption Projects:</strong> Focus on enabling CI/CD and security scanning</li>
         //                 <li><strong>Security Issues:</strong> Address critical vulnerabilities within 24 hours</li>
@@ -2174,7 +2710,7 @@ $(foreach($business in $BusinessReports) {
         //                 <li><strong>Failed Pipelines:</strong> Fix broken CI/CD pipelines immediately</li>
         //             </ul>
                     
-        //             <h3>📈 Weekly Goals</h3>
+        //             <h3> Weekly Goals</h3>
         //             <ul>
         //                 <li>Increase feature adoption score by 5%</li>
         //                 <li>Reduce pipeline failure rate below 10%</li>
@@ -2182,7 +2718,7 @@ $(foreach($business in $BusinessReports) {
         //                 <li>Encourage more code reviews and collaboration</li>
         //             </ul>
                     
-        //             <h3>🚀 Best Practices</h3>
+        //             <h3> Best Practices</h3>
         //             <ul>
         //                 <li>Use merge requests for all code changes</li>
         //                 <li>Write tests for new code (aim for &gt;80% coverage)</li>
@@ -2190,7 +2726,7 @@ $(foreach($business in $BusinessReports) {
         //                 <li>Document decisions and maintain project wikis</li>
         //             </ul>
                     
-        //             <h3>📊 Monitoring</h3>
+        //             <h3> Monitoring</h3>
         //             <ul>
         //                 <li>Review this dashboard weekly</li>
         //                 <li>Track progress against quarterly goals</li>
@@ -2234,7 +2770,7 @@ $(foreach($business in $BusinessReports) {
         function getHelpContent(section) {
             const helpData = {
                 'adoption': {
-                    title: '?? GitLab Adoption & Utilization Insights',
+                    title: 'GitLab Adoption & Utilization Insights',
                     content: [
                         '<h3>Purpose</h3>',
                         '<p>This section analyzes how effectively your organization is utilizing GitLab\'s features and identifies opportunities for improvement.</p>',
@@ -2260,7 +2796,7 @@ $(foreach($business in $BusinessReports) {
                     ].join('')
                 },
                 'health': {
-                    title: '?? Project Health Analysis',
+                    title: 'Project Health Analysis',
                     content: [
                         '<h3>Health Score Components</h3>',
                         '<ul>',
@@ -2288,7 +2824,7 @@ $(foreach($business in $BusinessReports) {
                     ].join('')
                 },
                 'security': {
-                    title: '??? Security Findings',
+                    title: 'Security Findings',
                     content: [
                         '<h3>Security Assessment</h3>',
                         '<p> vulnerability analysis across all projects using SAST, SCA, and dependency scanning.</p>',
@@ -2317,7 +2853,7 @@ $(foreach($business in $BusinessReports) {
                     ].join('')
                 },
                 'quality': {
-                    title: '?? Code Quality Analysis',
+                    title: 'Code Quality Analysis',
                     content: [
                         '<h3>Quality Factors</h3>',
                         '<ul>',
@@ -2346,7 +2882,7 @@ $(foreach($business in $BusinessReports) {
                     ].join('')
                 },
                 'cost': {
-                    title: '?? Cost Analysis',
+                    title: 'Cost Analysis',
                     content: [
                         '<h3>Cost Components</h3>',
                         '<ul>',
@@ -2371,7 +2907,7 @@ $(foreach($business in $BusinessReports) {
                     ].join('')
                 },
                 'technology': {
-                    title: '??? Technology Stack',
+                    title: 'Technology Stack',
                     content: [
                         '<h3>Stack Analysis</h3>',
                         '<p>Overview of programming languages, frameworks, and technologies used across projects.</p>',
@@ -2392,7 +2928,7 @@ $(foreach($business in $BusinessReports) {
                     ].join('')
                 },
                 'business': {
-                    title: '?? Business Alignment',
+                    title: 'Business Alignment',
                     content: [
                         '<h3>Alignment Assessment</h3>',
                         '<p>Evaluation of how well technical projects support strategic business objectives.</p>',
@@ -2419,30 +2955,30 @@ $(foreach($business in $BusinessReports) {
 
         function showQuickTips() {
             const quickTipsContent = {
-                title: '?? Quick Improvement Tips',
+                title: 'Quick Improvement Tips',
                 content: [
-                    '<h3>?? Immediate Actions</h3>',
+                    '<h3> Immediate Actions</h3>',
                     '<ul>',
                     '<li><strong>Low Adoption Projects:</strong> Focus on enabling CI/CD and security scanning</li>',
                     '<li><strong>Security Issues:</strong> Address critical vulnerabilities within 24 hours</li>',
                     '<li><strong>Inactive Projects:</strong> Review projects with no activity &gt;90 days</li>',
                     '<li><strong>Failed Pipelines:</strong> Fix broken CI/CD pipelines immediately</li>',
                     '</ul>',
-                    '<h3>?? Weekly Goals</h3>',
+                    '<h3> Weekly Goals</h3>',
                     '<ul>',
                     '<li>Increase feature adoption score by 5%</li>',
                     '<li>Reduce pipeline failure rate below 10%</li>',
                     '<li>Close at least 80% of open issues</li>',
                     '<li>Encourage more code reviews and collaboration</li>',
                     '</ul>',
-                    '<h3>?? Best Practices</h3>',
+                    '<h3> Best Practices</h3>',
                     '<ul>',
                     '<li>Use merge requests for all code changes</li>',
                     '<li>Write tests for new code (aim for &gt;80% coverage)</li>',
                     '<li>Regular security scans and dependency updates</li>',
                     '<li>Document decisions and maintain project wikis</li>',
                     '</ul>',
-                    '<h3>?? Monitoring</h3>',
+                    '<h3> Monitoring</h3>',
                     '<ul>',
                     '<li>Review this dashboard weekly</li>',
                     '<li>Track progress against quarterly goals</li>',
@@ -2474,9 +3010,9 @@ $(foreach($business in $BusinessReports) {
     <!-- <button class="floating-help" onclick="showHelp('adoption')">?</button> -->
     
     <div class="quick-actions">
-        <button class="quick-action-btn readme" onclick="window.open('README.md', '_blank')" title="Complete Documentation">📚</button>
-        <!-- <button class="quick-action-btn tips" onclick="showQuickTips()" title="Quick Improvement Tips">💡</button> -->
-        <button class="quick-action-btn export" onclick="window.print()" title="Print/Export Dashboard">📄</button>
+        <button class="quick-action-btn readme" onclick="window.open('README.md', '_blank')" title="Complete Documentation"><span>DOC</span></button>
+        <!-- <button class="quick-action-btn tips" onclick="showQuickTips()" title="Quick Improvement Tips"></button> -->
+        <button class="quick-action-btn export" onclick="window.print()" title="Print/Export Dashboard"><span>PDF</span></button>
     </div>
 
     <!-- Help Modal -->

@@ -440,7 +440,7 @@ function ConvertTo-Array {
 
 # Initialize logging
 if ($global:FileLoggingEnabled) {
-    Write-Log -Message "GitLab  Management Dashboard - Starting" -Level "Info" -Component "Init"
+    Write-Log -Message "Management Dashboard - Starting" -Level "Info" -Component "Init"
     Write-Log -Message "Log Level: $LogLevel" -Level "Info" -Component "Init"
     Write-Log -Message "Non-Interactive Mode: $($global:NonInteractiveMode)" -Level "Info" -Component "Init"
     Write-Log -Message "Output Path: $OutputPath" -Level "Info" -Component "Init"
@@ -3402,7 +3402,7 @@ function Export-CSVReports {
 # NOTE: Removed sample data helper - this template requires a live GitLab connection and valid access token.
 
 # MAIN SCRIPT EXECUTION
-Write-LogSection -Title "GitLab  Management Dashboard" -Symbol "="
+Write-LogSection -Title "Management Dashboard" -Symbol "="
 
 Write-Log -Message "Starting GitLab dashboard generation" -Level "Info" -Component "Main"
 Write-Log -Message "GitLab URL: $GitLabURL" -Level "Debug" -Component "Main"

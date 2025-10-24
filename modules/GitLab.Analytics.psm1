@@ -46,6 +46,51 @@ function Get-SafeList {
     return @(ConvertTo-GitLabArray $Data | Where-Object { $_ -ne $null })
 }
 
+function Get-DebugItemCount {
+    param($Value)
+
+    if ($null -eq $Value) { return 0 }
+
+    if ($Value -is [System.Collections.IDictionary]) {
+        try { return $Value.Count } catch { return ($Value.Keys | Measure-Object).Count }
+    }
+
+    if ($Value -is [string]) {
+        return $Value.Length
+    }
+
+    if ($Value -is [System.Collections.IEnumerable] -and ($Value -isnot [string])) {
+        try { return (@($Value)).Count } catch { return 0 }
+    }
+
+    if ($Value -is [psobject] -and $Value.PSObject -and $Value.PSObject.Properties) {
+        $propertyCount = $Value.PSObject.Properties.Count
+        if ($propertyCount -gt 0) { return $propertyCount }
+    }
+
+    return 1
+}
+
+function Add-DetectionValue {
+    param(
+        [ref]$Collection,
+        [string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) { return }
+
+    if ($null -eq $Collection.Value) {
+        $Collection.Value = @()
+    }
+    elseif ($Collection.Value -isnot [System.Collections.IList]) {
+        $Collection.Value = @($Collection.Value)
+    }
+
+    if ($Collection.Value -notcontains $Value) {
+        $Collection.Value += $Value
+    }
+}
+
 function Get-CodeQualityArtifactIssues {
     param(
         [int]$ProjectId,
@@ -1077,6 +1122,54 @@ function Generate-TechnologyStackReport {
             $registryRepos = Get-SafeList (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/registry/repositories?per_page=20")
             $environments = Get-SafeList (Invoke-GitLabAPI -Endpoint "projects/$($project.ProjectId)/environments?per_page=20")
 
+            $projectLabel = if ($project.PSObject.Properties['ProjectPath'] -and $project.ProjectPath) {
+                "$($project.ProjectName) [$($project.ProjectPath)]"
+            } else {
+                $project.ProjectName
+            }
+
+            $languagesType = if ($null -ne $languagesResponse) { $languagesResponse.GetType().Name } else { 'null' }
+            $languagesCount = Get-DebugItemCount $languagesResponse
+            $packagesCount = Get-DebugItemCount $packages
+            $jobsCount = Get-DebugItemCount $jobs
+            $registryCount = Get-DebugItemCount $registryRepos
+            $environmentCount = Get-DebugItemCount $environments
+
+            if (Get-Command -Name Write-Log -ErrorAction SilentlyContinue) {
+                Write-Log -Message "Fetched project metadata: Present=$([bool]$projectDetails)" -Level "Debug" -Activity "TechnologyStack" -Section "Analytics"
+                Write-Log -Message "Languages response type=$languagesType count=$languagesCount" -Level "Debug" -Activity "TechnologyStack" -Section "Analytics"
+                Write-Log -Message "Packages count=$packagesCount Jobs count=$jobsCount Registry count=$registryCount Environments count=$environmentCount" -Level "Debug" -Activity "TechnologyStack" -Section "Analytics"
+            } else {
+                Write-Verbose ("[TechnologyStack] {0}: projectDetails={1} languagesType={2} languagesCount={3} packages={4} jobs={5} registry={6} envs={7}" -f $projectLabel, ([bool]$projectDetails), $languagesType, $languagesCount, $packagesCount, $jobsCount, $registryCount, $environmentCount)
+            }
+
+            $defaultBranch = Get-SafePropertyValue -Object $projectDetails -Name 'default_branch'
+            if (-not $defaultBranch -and $project.PSObject.Properties['DefaultBranch']) {
+                $defaultBranch = $project.DefaultBranch
+            }
+            $treeEndpoint = "projects/$($project.ProjectId)/repository/tree?per_page=100&recursive=true"
+            if ($defaultBranch) {
+                $encodedBranch = [uri]::EscapeDataString($defaultBranch)
+                $treeEndpoint = "$treeEndpoint&ref=$encodedBranch"
+            }
+
+            $repositoryTree = Get-SafeList (Invoke-GitLabAPI -Endpoint $treeEndpoint -AllPages)
+            $repoFiles = @()
+            foreach ($entry in $repositoryTree) {
+                $entryType = Get-SafePropertyValue -Object $entry -Name 'type'
+                if ($entryType -and $entryType -ne 'blob') { continue }
+                $path = Get-SafePropertyValue -Object $entry -Name 'path'
+                if ($path) { $repoFiles += $path }
+            }
+            $repoFilesCount = Get-DebugItemCount $repoFiles
+
+            if (Get-Command -Name Write-Log -ErrorAction SilentlyContinue) {
+                $repoPreview = ($repoFiles | Select-Object -First 5) -join ', '
+                Write-Log -Message "Repository files count=$repoFilesCount branch=$defaultBranch preview=[${repoPreview}]" -Level "Debug" -Activity "TechnologyStack" -Section "Analytics"
+            } else {
+                Write-Verbose ("[TechnologyStack] {0}: repoFiles={1} branch={2}" -f $projectLabel, $repoFilesCount, $defaultBranch)
+            }
+
             $languageMap = @{}
             if ($languagesResponse) {
                 if ($languagesResponse -is [hashtable]) {
@@ -1154,6 +1247,18 @@ function Generate-TechnologyStackReport {
                 if ($regPath) { $tokens += $regPath }
             }
 
+            $tokenCount = Get-DebugItemCount $tokens
+            $languageMapCount = Get-DebugItemCount $languageMap
+            $languageListCount = Get-DebugItemCount $languageList
+
+            if (Get-Command -Name Write-Log -ErrorAction SilentlyContinue) {
+                $tokenPreview = ($tokens | Select-Object -First 5) -join ', '
+                Write-Log -Message "Token collection count=$tokenCount preview=[${tokenPreview}]" -Level "Debug" -Activity "TechnologyStack" -Section "Analytics"
+                Write-Log -Message "Language map count=$languageMapCount primaryLanguage=$primaryLanguage languageListCount=$languageListCount" -Level "Debug" -Activity "TechnologyStack" -Section "Analytics"
+            } else {
+                Write-Verbose ("[TechnologyStack] {0}: tokens={1} primaryLanguage={2}" -f $projectLabel, $tokenCount, $primaryLanguage)
+            }
+
             $tokens = $tokens | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
             $getMatches = {
@@ -1223,6 +1328,11 @@ function Generate-TechnologyStackReport {
                 'aspnet' = $false
                 'java' = $false
                 'php' = $false
+                'node' = $false
+                'python' = $false
+                'ruby' = $false
+                'go' = $false
+                'rust' = $false
                 'sharepoint' = $false
                 'documentation' = $false
             }
@@ -1244,20 +1354,112 @@ function Generate-TechnologyStackReport {
                 if ($token -match 'asp\.?net|dotnet|csharp|razor|blazor|microsoft\.aspnet') { $stackSignals['aspnet'] = $true }
                 if ($token -match '\bjava\b|spring|gradle|maven') { $stackSignals['java'] = $true }
                 if ($token -match '\bphp\b|composer|laravel|symfony|wordpress') { $stackSignals['php'] = $true }
+                if ($token -match '\bnode(\.js)?\b|npm|yarn|next\.js') { $stackSignals['node'] = $true }
+                if ($token -match '\bpython\b|django|flask|fastapi') { $stackSignals['python'] = $true }
+                if ($token -match '\bruby\b|rails|gemfile') { $stackSignals['ruby'] = $true }
+                if ($token -match '\bgo(lang)?\b|golang') { $stackSignals['go'] = $true }
+                if ($token -match '\brust\b|cargo') { $stackSignals['rust'] = $true }
                 if ($token -match 'sharepoint|spfx|power platform|ms graph') { $stackSignals['sharepoint'] = $true }
                 if ($token -match 'documentation|docs|mkdocs|docusaurus|readthedocs|mdbook|tech writing') { $stackSignals['documentation'] = $true }
             }
 
             if ($packages | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'package_type') -match 'maven|gradle' }) { $stackSignals['java'] = $true }
             if ($packages | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'package_type') -match 'composer' }) { $stackSignals['php'] = $true }
+            if ($packages | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'package_type') -match 'npm' }) { $stackSignals['node'] = $true }
+            if ($packages | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'package_type') -match 'pypi|pip' }) { $stackSignals['python'] = $true }
             if ($jobs | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'name') -match 'dotnet|aspnet' }) { $stackSignals['aspnet'] = $true }
             if ($jobs | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'name') -match 'gradle|maven' }) { $stackSignals['java'] = $true }
             if ($jobs | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'name') -match 'composer|phpunit' }) { $stackSignals['php'] = $true }
+            if ($jobs | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'name') -match 'npm|yarn|node' }) { $stackSignals['node'] = $true }
+            if ($jobs | Where-Object { (Get-SafePropertyValue -Object $_ -Name 'name') -match 'pytest|pip|python' }) { $stackSignals['python'] = $true }
+
+            if ($repoFilesCount -gt 0) {
+                if ($repoFiles | Where-Object { $_ -match '(^|/)package\.json$' }) {
+                    $stackSignals['node'] = $true
+                    Add-DetectionValue ([ref]$detectedFrameworks) 'Node.js'
+                    Add-DetectionValue ([ref]$detectedBuildTools) 'npm/yarn'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)(angular\.json|nx\.json)$' }) {
+                    Add-DetectionValue ([ref]$detectedFrameworks) 'Angular'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)next\.config\.(js|ts)$' }) {
+                    Add-DetectionValue ([ref]$detectedFrameworks) 'Next.js'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)nuxt\.config\.(js|ts)$' -or $_ -match '(^|/)vue\.config\.js$' }) {
+                    Add-DetectionValue ([ref]$detectedFrameworks) 'Vue'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)pom\.xml$' }) {
+                    $stackSignals['java'] = $true
+                    Add-DetectionValue ([ref]$detectedBuildTools) 'Maven'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)build\.gradle(\.kts)?$' -or $_ -match '(^|/)gradlew$' -or $_ -match '(^|/)settings\.gradle(\.kts)?$' }) {
+                    $stackSignals['java'] = $true
+                    Add-DetectionValue ([ref]$detectedBuildTools) 'Gradle'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)(requirements\.txt|Pipfile|pyproject\.toml|setup\.py)$' }) {
+                    $stackSignals['python'] = $true
+                    Add-DetectionValue ([ref]$detectedBuildTools) 'Pip/Poetry'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)manage\.py$' }) {
+                    Add-DetectionValue ([ref]$detectedFrameworks) 'Django'
+                    $stackSignals['python'] = $true
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)Gemfile$' }) {
+                    $stackSignals['ruby'] = $true
+                    Add-DetectionValue ([ref]$detectedFrameworks) 'Rails'
+                    Add-DetectionValue ([ref]$detectedBuildTools) 'Bundler'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)composer\.json$' }) {
+                    $stackSignals['php'] = $true
+                    Add-DetectionValue ([ref]$detectedBuildTools) 'Composer'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/).+\.csproj$' -or $_ -match '(^|/).+\.sln$' }) {
+                    $stackSignals['aspnet'] = $true
+                    Add-DetectionValue ([ref]$detectedFrameworks) 'ASP.NET'
+                    Add-DetectionValue ([ref]$detectedBuildTools) '.NET CLI'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)go\.mod$' }) {
+                    $stackSignals['go'] = $true
+                    Add-DetectionValue ([ref]$detectedBuildTools) 'Go Modules'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)Cargo\.toml$' }) {
+                    $stackSignals['rust'] = $true
+                    Add-DetectionValue ([ref]$detectedBuildTools) 'Cargo'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)Dockerfile$' }) {
+                    Add-DetectionValue ([ref]$containerizationComponents) 'Docker'
+                    if ($deploymentPlatform -eq 'Unknown') { $deploymentPlatform = 'Docker' }
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)docker-compose\.ya?ml$' }) {
+                    Add-DetectionValue ([ref]$containerizationComponents) 'Docker Compose'
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)Chart\.ya?ml$' -or $_ -match '(^|/)helm/' -or $_ -match '(^|/)(k8s|kubernetes)/' }) {
+                    Add-DetectionValue ([ref]$containerizationComponents) 'Helm'
+                    if ($deploymentPlatform -eq 'Unknown' -or $deploymentPlatform -eq 'GitLab Environments') {
+                        $deploymentPlatform = "Kubernetes"
+                    }
+                }
+                if ($repoFiles | Where-Object { $_ -match '(^|/)(Makefile|CMakeLists\.txt)$' }) {
+                    Add-DetectionValue ([ref]$detectedBuildTools) 'Make/CMake'
+                }
+            }
+
+            $containerizationComponents = ($containerizationComponents | Where-Object { $_ }) | Select-Object -Unique
+            $detectedFrameworks = @($detectedFrameworks | Where-Object { $_ } | Select-Object -Unique)
+            $detectedBuildTools = @($detectedBuildTools | Where-Object { $_ } | Select-Object -Unique)
+            $detectedDatabases = @($detectedDatabases | Where-Object { $_ } | Select-Object -Unique)
+            $detectedTesting = @($detectedTesting | Where-Object { $_ } | Select-Object -Unique)
+            $detectedMonitoring = @($detectedMonitoring | Where-Object { $_ } | Select-Object -Unique)
 
             $detectedStacks = @()
             if ($stackSignals['aspnet']) { $detectedStacks += 'ASP.NET' }
             if ($stackSignals['java']) { $detectedStacks += 'Java' }
             if ($stackSignals['php']) { $detectedStacks += 'PHP' }
+            if ($stackSignals['node']) { $detectedStacks += 'Node.js' }
+            if ($stackSignals['python']) { $detectedStacks += 'Python' }
+            if ($stackSignals['ruby']) { $detectedStacks += 'Ruby' }
+            if ($stackSignals['go']) { $detectedStacks += 'Go' }
+            if ($stackSignals['rust']) { $detectedStacks += 'Rust' }
             if ($stackSignals['sharepoint']) { $detectedStacks += 'SharePoint' }
             if ($stackSignals['documentation']) { $detectedStacks += 'Documentation' }
 
@@ -1274,6 +1476,21 @@ function Generate-TechnologyStackReport {
             }
             if ($stackSignals['php'] -and $frameworkValue -eq "None detected") {
                 $frameworkValue = "PHP Ecosystem"
+            }
+            if ($stackSignals['node'] -and $frameworkValue -eq "None detected") {
+                $frameworkValue = "Node.js"
+            }
+            if ($stackSignals['python'] -and $frameworkValue -eq "None detected") {
+                $frameworkValue = "Python"
+            }
+            if ($stackSignals['ruby'] -and $frameworkValue -eq "None detected") {
+                $frameworkValue = "Ruby / Rails"
+            }
+            if ($stackSignals['go'] -and $frameworkValue -eq "None detected") {
+                $frameworkValue = "Go"
+            }
+            if ($stackSignals['rust'] -and $frameworkValue -eq "None detected") {
+                $frameworkValue = "Rust"
             }
             if ($stackSignals['sharepoint']) {
                 $frameworkValue = "SharePoint"

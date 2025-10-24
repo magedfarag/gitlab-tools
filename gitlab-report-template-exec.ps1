@@ -11,7 +11,7 @@ param(
     [switch]$IncludeSecurityData = $true,
     [switch]$IncludeAllReports = $true,
     [ValidateSet("Minimal","Normal","Verbose","Debug")]
-    [string]$LogLevel = 'Verbose',
+    [string]$LogLevel = 'Debug',
     [switch]$NonInteractive,
     [switch]$EnableFileLogging,
     [switch]$ForceRestart
@@ -176,7 +176,7 @@ function Test-GitLabConnection {
 
 $script:ApiClient = New-GitLabApiClient -BaseUri ([uri]$GitLabURL) -AccessToken $AccessToken -DefaultPerPage 100 -MaxPages 100 -MaxRetries 3 -InitialDelayMs 250 -MaxDelayMs 16000 -MinDelayBetweenCallsMs 200
 
-Write-LogSection -Title 'GitLab  Management Dashboard' -Symbol '='
+Write-LogSection -Title 'Management Dashboard' -Symbol '='
 Write-Log -Message 'Starting GitLab dashboard generation' -Level 'Info' -Component 'Main'
 Write-Log -Message "GitLab URL: $GitLabURL" -Level 'Debug' -Component 'Main'
 Write-Log -Message "Include Security Data: $IncludeSecurityData" -Level 'Debug' -Component 'Main'
